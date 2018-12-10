@@ -33,6 +33,7 @@ res_stdev = np.zeros(numPts)
 slope = np.zeros(numPts)
 
 compAngle = np.zeros(len(rawAngle))
+corrAngle = np.zeros(len(rawAngle))
 
 i = 0 #iterator over x values
 for x_n in x:
@@ -65,12 +66,10 @@ for x_n in x:
 #between each residual    
 i = 0        
 for x_n in x:
-    if(i == 0):
-        slope[i] = (res_avg[i+1] - res_avg[i])/dx
-    elif(i == numPts - 1):
+    if(i == numPts - 1):
         slope[i] = (res_avg[i] - res_avg[i-1])/dx
     else:
-        slope[i] = (res_avg[i+1] - res_avg[i-1])/(2*dx)
+        slope[i] = (res_avg[i+1] - res_avg[i])/dx
     
     i += 1
     
@@ -79,13 +78,16 @@ i = 0
 for angle in rawAngle:
     index = int(np.floor(100*angle))
     compAngle[i] = res_avg[index] + slope[index]*(angle - np.floor(100*angle)/100)
+    corrAngle[i] = residualAngle[i] - compAngle[i]
     i += 1
         
        
 np.savetxt(r'D:\Documents\Projects\SR544\Data\residual_averages.txt',np.transpose([x,res_avg,res_stdev,slope]),newline='\r\n',delimiter=',')
     
 plt.figure(1)
-plt.errorbar(x,res_avg, yerr=res_stdev,color='g', marker='.',linestyle='None')
+#plt.errorbar(x,res_avg, yerr=res_stdev,color='g', marker='.',linestyle='None')
+plt.plot(rawAngle,residualAngle, color='b',marker='o',linestyle='None')
 plt.plot(rawAngle,compAngle, color='r', marker='_', linestyle='None')
+plt.plot(rawAngle,corrAngle,color='g',marker='.',linestyle='None')
 plt.ylabel('raw angle (revs)')
 plt.xlabel('residual angle (revs)')

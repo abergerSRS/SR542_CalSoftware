@@ -88,9 +88,12 @@ for angle in rawAngle:
     corrAngle[i] = residualAngle[i] - compAngle[i]
     corrAngle_noSlope[i] = residualAngle[i] - compAngle_noSlope[i]
     i += 1
+    
+integerResiduals = [int(x) for x in (res_avg*(2**32))]
         
        
 np.savetxt(r'D:\Documents\Projects\SR544\Data\residual_averages.txt',np.transpose([x,res_avg,res_stdev,slope]),newline='\r\n',delimiter=',')
+np.savetxt(r'D:\Documents\Projects\SR544\Data\angleCorr_LUT.txt',integerResiduals,newline=',\r\n',fmt='%u')
     
 plt.figure(1)
 #plt.errorbar(x,res_avg, yerr=res_stdev,color='g', marker='.',linestyle='None')

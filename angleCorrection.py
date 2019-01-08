@@ -2,14 +2,27 @@
 """
 Written by A. Berger on 12/17/2018
 
+This program imports angular position data acquired at nominally-constant speed
+(fixed current) for intermediate motor frequencies (~20 Hz) where the angular deviations are dominated
+by encoder error
 
+The program calculates the residual angle (deviation from uniform speed), and resamples
+that data to create a look-up-table to correct the encoder angular measurement readings
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import sqrt, pi, exp, linspace, random
 
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22.txt'
+#data used for angle calibration (acquired at 22 Hz)
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22.txt'
+
+#alternative filename
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.3Hz_torqueCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.3Hz_angle_torqueCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22Hz_angle_torqueCorr.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0,1], skiprows=0)
 
@@ -150,5 +163,9 @@ N_encoder = 100
 [tickCount,resAngle_avg,resAngle_std] = resample(rawAngle[discardPts:-discardPts],resAngle[discardPts:-discardPts],N_encoder)
 
 plt.errorbar(tickCount,resAngle_avg, yerr=resAngle_std,color='orange', marker='.',linestyle='None')
+plt.xlabel('motor angle (rad)')
+plt.ylabel('residual angle (rad)')
 
-#np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
+angleCorr_int32 = np.asarray([int(x) for x in (2**32)*resAngle_avg/(2*pi)])
+
+#np.savetxt(r'D:\Documents\Projects\SR544\Data\angleCorr_LUT.txt',angleCorr_int32,newline=',\r\n',fmt='%d')

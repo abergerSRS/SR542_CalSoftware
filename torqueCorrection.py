@@ -15,7 +15,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy import sqrt, pi, exp, linspace, random
 
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22.txt'
+#data with angle correction, for torque calibration:
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_withAngleCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_angleCorr.txt'
+
+#alternative file
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0,1], skiprows=0)
 
@@ -164,6 +170,12 @@ current_corr = torque/torqueConst #in Amps
 current_corr = current_corr/0.9 #as a float
 
 #convert current (as a float) to a frac16_t
-current_Q_F16 = 0x8000*current_corr #as a frac16_t
+current_Q_F16 = 1.25*0x8000*current_corr #as a frac16_t
 
-#np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
+np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
+
+plt.figure(1)
+plt.plot(rawAngle,alpha_smth,marker='o',linestyle='none')
+plt.errorbar(tickCount,alpha_avg, yerr=alpha_std,color='orange', marker='.',linestyle='None')
+plt.xlabel('motor angle (rad)')
+plt.ylabel('alpha (rad/s^2)')

@@ -8,7 +8,7 @@ Created on Wed Jan  2 09:57:28 2019
 import numpy as np
 from scipy import signal
 import matplotlib.pyplot as plt
-from numpy import pi, sqrt
+from numpy import pi, sqrt, logspace
 
 K_T = 7.5e-3    #torque constant, N*m/A
 J = 1.66e-5     #moment of inertia
@@ -27,6 +27,7 @@ motor transfer function
 """
 motor with PI feedback
 (b*k_p*s + b*k_i)/(s^2 + (a + b*k_p)*s + b*k_i)
+#from Notebook #4, pg 130
 """
 b = 2*K_T/J
 a = 2*zeta/J
@@ -44,3 +45,13 @@ plt.figure(1)
 plt.plot(t1,y1)
 plt.xlabel('time (s)')
 plt.ylabel('motor freq (Hz)')
+
+f = logspace(-1,8)
+w = 2*pi*f
+
+w, mag, phase = signal.bode(motor_tf,w)
+
+plt.figure(2)
+plt.semilogx(f, mag);
+plt.figure(3)
+plt.semilogx(f, phase);

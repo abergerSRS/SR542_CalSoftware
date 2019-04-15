@@ -40,8 +40,8 @@ and
 H(s) = K_T*k_p/J*( (s + k_i/k_p) / (s^2 + s*(K_T*k_p + Gamma)/J + K_T*k_i/J) )
 """
 
-tf_num = [K_T*k_p/J, K_T*k_i/J]
-tf_den = [1, (K_T*k_p + Gamma)/J, K_T*k_i/J]
+tf_num = [K_T*k_p, K_T*k_i]
+tf_den = [J, (K_T*k_p + 2*Gamma), K_T*k_i]
 
 motor_tf = signal.TransferFunction(tf_num, tf_den)
 
@@ -71,5 +71,5 @@ plt.plot(t1,y1)
 plt.xlabel('time (s)')
 plt.ylabel('motor freq response (Hz/Hz)')
 
-print("poles at: "+str(motor_tf.poles))
-print("zeros at: "+str(motor_tf.zeros))
+print("poles at: "+str(motor_tf.poles)+"rad/s")
+print("zeros at: "+str(motor_tf.zeros)+"rad/s")

@@ -18,24 +18,27 @@ from numpy import sqrt, pi, exp, linspace, random
 #data with angle correction, for torque calibration:
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_withAngleCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_angleCorr.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3_withAngleComp.txt'
 
 #alternative file
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
 
-data = np.loadtxt(filename, delimiter=' ', usecols=[0,1], skiprows=0)
+data = np.loadtxt(filename, delimiter=' ', usecols=[0], skiprows=0)
 
 dt = 0.004369066688 #assumes data is being sampled at ~4 ms
                     #based on an FTM3PERIOD_S = 6.8266667e-5
                     #and a PID_PRESCALE = 64
                     
-N = len(data[1:,0]) #discarding first point
+N = len(data[1:]) #discarding first point
 time = linspace(0,(N-1)*dt,N)
-rawAngle = 2*pi*data[1:,1]/(2**32) #in rad
+rawAngle = 2*pi*data[1:]/(2**32) #in rad
 uwAngle = np.unwrap(rawAngle) #in rad
 
+#moment = 1.21e-5 #kg*m^2, from I_zz Fusion 360 model of encoder disc
 moment = 1.7e-5 #kg*m^2, from impulse measurements
-torqueConst = 7.48e-3 #N*m/A, from motor spec sheet
+#torqueConst = 5.55e-3 #N*m/A, from Nuelectronics motor spec sheet
+torqueConst = 7.48e-3 #N*m/A, from Elinco motor spec sheet
 
 def resample(x,y,numPts):
     """
@@ -65,9 +68,9 @@ def resample(x,y,numPts):
                 total += y[j]
                 n += 1
             j += 1
-            
+        
         y_resamp[i] = total/n
-        #print(res_avg[i])
+        print(y_resamp[i])
         
         #again iterate over y values to calculate standard deviation
         sum_sq = 0
@@ -155,7 +158,7 @@ alpha = np.gradient(omega,dt)
 alpha_smth = smooth(alpha,window_len=11,window='hanning')
 
 # the first and last several points deviate from the majority behavior. Throw them away
-discardPts = 5
+discardPts = 30
 #plt.plot(rawAngle[discardPts:-discardPts],alpha_smth[discardPts:-discardPts],marker='.',linestyle='none')
 
 #downsample the smoothed data to create a look-up-table based on the 100-point encoder count
@@ -166,11 +169,11 @@ N_encoder = 100
 torque = moment*alpha_avg
 current_corr = torque/torqueConst #in Amps
 
-#currently, the output current is scaled such that full-scale = 0.9 A
-current_corr = current_corr/0.9 #as a float
+#currently, the output current is scaled such that full-scale = 1.65 A
+current_corr = current_corr/1.65 #as a float
 
 #convert current (as a float) to a frac16_t
-current_Q_F16 = 1.25*0x8000*current_corr #as a frac16_t
+current_Q_F16 = 0x8000*current_corr #as a frac16_t
 
 np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
 
@@ -179,3 +182,12 @@ plt.plot(rawAngle,alpha_smth,marker='o',linestyle='none')
 plt.errorbar(tickCount,alpha_avg, yerr=alpha_std,color='orange', marker='.',linestyle='None')
 plt.xlabel('motor angle (rad)')
 plt.ylabel('alpha (rad/s^2)')
+
+fig, ax1 = plt.subplots()
+ax1.set_xlabel('tick count')
+ax1.set_ylabel('current correction (FRAC16)')
+ax1.plot(current_Q_F16)
+
+ax2 = ax1.twinx()
+ax2.set_ylabel('current correction/full scale')
+ax2.plot(current_Q_F16/(2**15))

@@ -20,24 +20,26 @@ from numpy import sqrt, pi, exp, linspace, random
 #alternative filename
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.3Hz_torqueCorr.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.3Hz_angle_torqueCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\.008SR544\tools\angleRecord_8Y16_A_2.3Hz_angle_torqueCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22Hz_angle_torqueCorr.txt'
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_22_withAngleComp.txt'
 
-data = np.loadtxt(filename, delimiter=' ', usecols=[0,1], skiprows=0)
+data = np.loadtxt(filename, delimiter=' ', usecols=[0], skiprows=0)
 
-dt = 0.004369066688 #assumes data is being sampled at ~4 ms
+#dt = 0.004369066688 #assumes data is being sampled at ~4 ms
                     #based on an FTM3PERIOD_S = 6.8266667e-5
                     #and a PID_PRESCALE = 64
+dt = 4096/60e6
                     
-N = len(data[1:,0]) #discarding first point
+N = len(data[0:5000]) #discarding first point
 time = linspace(0,(N-1)*dt,N)
-rawAngle = 2*pi*data[1:,1]/(2**32) #in 
+rawAngle = 2*pi*data[0:5000]/(2**32) #in 
 
    
 uwAngle = np.unwrap(rawAngle) #in rad
 
-p = np.polyfit(time,uwAngle,20)
+p = np.polyfit(time,uwAngle,1)
     
 resAngle = uwAngle - np.polyval(p,time)
     

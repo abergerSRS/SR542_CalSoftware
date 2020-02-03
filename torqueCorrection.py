@@ -19,6 +19,11 @@ from numpy import sqrt, pi, exp, linspace, random
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_withAngleCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3Hz_angleCorr.txt'
 filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3_withAngleComp.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3Hz_withTorqueComp.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3Hz_att2.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_5Hz_att1.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3Hz_withTorqueComp_att3.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_3Hz_1.5xTorqueCorr.txt'
 
 #alternative file
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
@@ -70,7 +75,7 @@ def resample(x,y,numPts):
             j += 1
         
         y_resamp[i] = total/n
-        print(y_resamp[i])
+        #print(y_resamp[i])
         
         #again iterate over y values to calculate standard deviation
         sum_sq = 0
@@ -152,10 +157,13 @@ def smooth(x,window_len=11,window='hanning'):
 
 # differentiate unwrapped angle twice to calculate acceleration
 omega = np.gradient(uwAngle,dt)
-alpha = np.gradient(omega,dt)
+# calculate smoothed speed
+omega_smth = smooth(omega, window_len = 17, window = 'hanning')
+
+alpha_smth = np.gradient(omega_smth,dt)
 
 # calculate smoothed data
-alpha_smth = smooth(alpha,window_len=11,window='hanning')
+#alpha_smth = smooth(alpha,window_len=11,window='hanning')
 
 # the first and last several points deviate from the majority behavior. Throw them away
 discardPts = 30
@@ -173,9 +181,10 @@ current_corr = torque/torqueConst #in Amps
 current_corr = current_corr/1.65 #as a float
 
 #convert current (as a float) to a frac16_t
-current_Q_F16 = 0x8000*current_corr #as a frac16_t
+current_Q_F16 = 0x8000*current_corr
 
 np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
+
 
 plt.figure(1)
 plt.plot(rawAngle,alpha_smth,marker='o',linestyle='none')

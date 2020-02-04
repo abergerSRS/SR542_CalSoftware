@@ -33,21 +33,24 @@ class GenericEncoder(object):
         return self.points
     
     # Given: an array of actual positions (in revs)
-    # Return: locations (in time) of changes in encoder count (for use with 
-    # simulated FTM input cpature of edges)
+    # Return: index of locations of changes in encoder count (for use with 
+    # simulated FTM input capture of edges)
     def findEdges(self, actualPos):
         (posCount, numRevolutions) = self.measureRaw(actualPos)
         edges = np.zeros(0, dtype=int)
+        encPos = np.zeros(0, dtype=int)
         
         #first handle the zero-th element
         if posCount[0] != posCount[-1]:
             edges = np.append(edges, 0)
+            encPos = np.append(encPos, posCount[0])
             
         for i, count in enumerate(posCount[1:], start=1):
             if posCount[i] != posCount[i-1]:
                 edges = np.append(edges, i)
+                encPos = np.append(encPos, posCount[i])
                 
-        return edges
+        return (encPos, edges)
     
 class PerfectEncoder(GenericEncoder):
     def __init__(self, N):
@@ -55,7 +58,7 @@ class PerfectEncoder(GenericEncoder):
         
 class USDigitalE2Encoder(GenericEncoder):
     def __init__(self):
-        angleError_degs = np.array([
+        angleError_elecDegs = np.array([
         2.44186501,  2.5379438 , -0.27091587, -3.57686419, -4.41229792,
         0.49112343, -0.01359262, -0.9317193 ,  1.25871155, -0.02554087,
        -0.57320613, -1.54170247, -0.95057039, -0.08583924,  2.3392125 ,
@@ -77,8 +80,14 @@ class USDigitalE2Encoder(GenericEncoder):
         2.18551477, -1.74108652, -0.20605028, -1.04449301, -0.65542215,
        -2.01900357,  2.52012054,  2.41968657,  0.96446608,  0.43393069])
     
-        self.points = np.arange(0, 1, 1.0/len(angleError_degs)) 
-        self.points += angleError_degs/(360*len(angleError_degs))
+        self.points = np.arange(0, 1, 1.0/len(angleError_elecDegs)) 
+        self.points += angleError_elecDegs/(360*len(angleError_elecDegs))
+        
+        self.tickSpacing = np.zeros(len(self.points))
+        
+        self.tickSpacing[0] = self.points[0] + 1.0 - self.points[99]        
+        for i, tick in enumerate(self.points[1:], start=1):
+            self.tickSpacing[i] = self.points[i] - self.points[i-1]
         
 class FTMCounter():
     def __init__(self, freq, modulus, time_array_s):
@@ -97,9 +106,8 @@ class FTMCounter():
         counts = self.getCount(time_s)
         deltaCount = np.zeros(0, dtype = int)
         
-        for i in range(len(counts[0:-1])):
-            deltaCount = np.append(deltaCount, counts[i+1] - counts[i])
-            
+        for i in range(1, len(counts)):
+            deltaCount = np.append(deltaCount, counts[i] - counts[i-1])
         return deltaCount
         
 # Start the procedure here
@@ -131,12 +139,50 @@ plt.xlabel('time (s)')
 
 ftm = FTMCounter(60e6, 4096, t)
 shaftEncoder = USDigitalE2Encoder()
-perfectEncoder = PerfectEncoder(100)
+N_enc = shaftEncoder.getCountsPerRevolution()
+perfectEncoder = PerfectEncoder(N_enc)
 
-actualPosInCounts = theta_actual*shaftEncoder.getCountsPerRevolution()
+actualPosInCounts = theta_actual*N_enc
+
 measuredPosInCounts = shaftEncoder.measure(theta_actual)
-measuredEdgeIndices = shaftEncoder.findEdges(theta_actual)
+(measPosAtEdge, measuredEdgeIndices) = shaftEncoder.findEdges(theta_actual)
 measuredCountDeltas = ftm.getCountDeltas(t[measuredEdgeIndices])
+measuredDeltaT_secs = measuredCountDeltas/ftm.freq
+measuredSpeed = 1/(N_enc*measuredDeltaT_secs)
+
+perfectPosInCounts = perfectEncoder.measure(theta_actual)
+(perfPosAtEdge, perfectEdgeIndices) = perfectEncoder.findEdges(theta_actual)
+perfectCountDeltas = ftm.getCountDeltas(t[perfectEdgeIndices])
+perfectDeltaT_secs = perfectCountDeltas/ftm.freq
+perfectSpeed = 1/(N_enc*perfectDeltaT_secs)
+
+"""
+plt.figure(1)
+plt.plot(t, actualPosInCounts)
+plt.plot(t, measuredPosInCounts)
+plt.plot(t, perfectPosInCounts)
+plt.legend(('actual pos', 'shaft encoder', 'perfect encoder'))
+plt.ylabel('position (encoder count)')
+plt.xlabel('time (s)')
+
+plt.figure(2)
+plt.plot(t, omega)
+plt.plot(t[measuredEdgeIndices[1:]], measuredSpeed, marker='o')
+plt.plot(t[perfectEdgeIndices[1:]], perfectSpeed, marker='o')
+plt.legend(('actual pos', 'shaft encoder', 'perfect encoder'))
+plt.ylabel('measured speed (revs/s)')
+plt.xlabel('time (s)')
+"""
+
+encoderCount = np.linspace(0, N_enc-1, N_enc)
+measuredTickSpacing = perfectSpeed*measuredDeltaT_secs
+
+plt.figure(3)
+plt.plot(measPosAtEdge[1:], measuredTickSpacing, marker='o', linestyle='none')
+plt.plot(encoderCount, shaftEncoder.tickSpacing)
+plt.legend(('measured', 'actual'))
+plt.ylabel('tick spacing (revs)')
+plt.xlabel('encoder count')
 
 """
 plt.figure(2)
@@ -145,6 +191,4 @@ plt.ylabel('actual - shaft encoder (counts)')
 plt.xlabel('time (s)')
 """
 
-perfectPosInCounts = perfectEncoder.measure(theta_actual)
-perfectEdgeIndices = perfectEncoder.findEdges(theta_actual)
-perfectCountDeltas = ftm.getCountDeltas(t[perfectEdgeIndices])
+

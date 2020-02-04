@@ -115,34 +115,28 @@ class FTMCounter():
         for i in range(1, len(count)):
             deltaCount = np.append(deltaCount, count[i] - count[i-1])
         return deltaCount
-        
-# Start the procedure here
-omega_0 = 85 #Hz
-theta_0 = 0.3 #revs
+    
+"""
+-------------------------------------------------------------------------------
+Start the procedure here ------------------------------------------------------
+-------------------------------------------------------------------------------
+"""
 
-dt = 1/120e6 #seconds (twice as fast as CPU sampling rate, just to ensure no artifacts)
+omega_0 = 85 #Hz
+theta_0 = 0 #revs
+
+dt = 1/120e6 #seconds (twice as fast as FTM sampling rate, just to ensure no artifacts)
 numRevs = 3
 t_final = numRevs/omega_0
 numPoints = int(t_final/dt)
 t = np.linspace(0, t_final, numPoints)
 
 gamma = .073 #damping parameter, in Hz/s
-#omega = omega_0*np.exp(-gamma*t)
-omega = omega_0*np.ones(len(t))
+omega = omega_0*np.exp(-gamma*t)
+#omega = omega_0*np.ones(len(t))
 
 theta_actual = scipy.integrate.cumtrapz(omega, t, initial = theta_0)
 theta_actual[1:] += theta_0
-
-"""
-plt.subplot(2,1,1)
-plt.plot(t, omega)
-plt.ylabel('speed (revs/s)')
-
-plt.subplot(2,1,2)
-plt.plot(t, theta_actual % 1.0)
-plt.ylabel('angle (revs)')
-plt.xlabel('time (s)')
-"""
 
 ftm = FTMCounter(60e6, 4096, t)
 shaftEncoder = USDigitalE2Encoder()
@@ -166,6 +160,9 @@ perfectSpeed = 1/(N_enc*perfectDeltaT_secs)
 encoderCount = np.linspace(0, N_enc-1, N_enc)
 measuredTickSpacing = perfectSpeed*measuredDeltaT_secs
 
+"""
+Plotting-----------------------------------------------------------------------
+"""
 fig1, ax1 = plt.subplots()
 ax1.plot(t, actualPosInCounts)
 ax1.plot(t, measuredPosInCounts)
@@ -173,6 +170,7 @@ ax1.plot(t, perfectPosInCounts)
 ax1.legend(('actual pos', 'shaft encoder', 'perfect encoder'))
 ax1.set_ylabel('position (encoder count)')
 ax1.set_xlabel('time (s)')
+ax1.set_title('Position vs. time for simulated rotor')
 
 fig2, ax2 = plt.subplots()
 ax2.plot(t, omega)
@@ -181,6 +179,7 @@ ax2.plot(t[perfectEdgeIndices[1:]], perfectSpeed, marker='o')
 ax2.legend(('actual pos', 'shaft encoder', 'perfect encoder'))
 ax2.set_ylabel('measured speed (revs/s)')
 ax2.set_xlabel('time (s)')
+ax2.set_title('Actual and Measured speed,\n calculated from FTM count between subsequent encoder edges')
 
 fig3, ax3 = plt.subplots()
 ax3.plot(measPosAtEdge[1:], measuredTickSpacing, marker='o', linestyle='none')
@@ -188,12 +187,26 @@ ax3.plot(encoderCount, shaftEncoder.tickSpacing)
 ax3.legend(('measured', 'actual'))
 ax3.set_ylabel('tick spacing (revs)')
 ax3.set_xlabel('encoder count')
+ax3.set_title('Actual and Measured spacing between encoder ticks,\n for simulated 100-count shaft encoder')
+fig3.tight_layout()
 
 """
-plt.figure(2)
-plt.plot(t, actualPositionInCounts - measuredPositionInCounts)
-plt.ylabel('actual - shaft encoder (counts)')
-plt.xlabel('time (s)')
+Now calculate the corrections -------------------------------------------------
 """
+indexTickZero = np.where(measPosAtEdge == 0)[0][0]
+actualTickPos = np.cumsum(measuredTickSpacing[(indexTickZero-1):(indexTickZero-1 + N_enc)])
+deltaTick = actualTickPos - (encoderCount+1)/N_enc
 
+"""
+And re-run the experiment -----------------------------------------------------
+"""
+corrPos = measuredPosInCounts + deltaTick[measuredPosInCounts%N_enc]*N_enc
+fig4, ax4 = plt.subplots()
+ax4.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - measuredPosInCounts[measuredEdgeIndices]/N_enc)
+ax4.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - corrPos[measuredEdgeIndices]/N_enc)
+ax4.set_xlabel('time (s)')
+ax4.set_ylabel('angle error (revs)')
+ax4.legend(('uncorrected', 'corrected'))
+ax4.set_title('Difference between actual and measured angle,\n sampled at encoder edges')
+fig4.tight_layout()
 

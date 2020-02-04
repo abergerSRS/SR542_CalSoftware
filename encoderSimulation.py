@@ -19,8 +19,8 @@ class GenericEncoder(object):
     # Return: an ordered pair of encoder position count, and number of revolutions
     def measureRaw(self, actualPos):
         positionInRevolution = np.array(actualPos) % 1.0
-        numRevolutions = np.round(actualPos - positionInRevolution).astype(int)
-        posCount = np.searchsorted(self.points, positionInRevolution)
+        posCount = (np.searchsorted(self.points, positionInRevolution, side='right') - 1)%len(self.points)
+        numRevolutions = ((actualPos - self.points[0])//1).astype(int)
         return (posCount, numRevolutions)
     
     # Given: an array of actual positions (in revs)

@@ -37,15 +37,15 @@ class GenericEncoder(object):
     # simulated FTM input cpature of edges)
     def findEdges(self, actualPos):
         (posCount, numRevolutions) = self.measureRaw(actualPos)
-        edges = np.zeros(len(posCount))
+        edges = np.zeros(0, dtype=int)
         
         #first handle the zero-th element
         if posCount[0] != posCount[-1]:
-            edges[0] = 1
+            edges = np.append(edges, 0)
             
         for i, count in enumerate(posCount[1:], start=1):
             if posCount[i] != posCount[i-1]:
-                edges[i] = 1
+                edges = np.append(edges, i)
                 
         return edges
     
@@ -78,7 +78,7 @@ class USDigitalE2Encoder(GenericEncoder):
        -2.01900357,  2.52012054,  2.41968657,  0.96446608,  0.43393069])
     
         self.points = np.arange(0, 1, 1.0/len(angleError_degs)) 
-        self.points += angleError_degs/360
+        self.points += angleError_degs/(360*len(angleError_degs))
         
 class FTMCounter():
     def __init__(self, freq, modulus, time_array_s):
@@ -88,12 +88,23 @@ class FTMCounter():
         #self.count = (time_array_s*self.freq % self.modulus).astype(int)
         self.count = (time_array_s*self.freq).astype(int)
         
+    # Returns: At some point in time "time_s", what is the FTM counter value?
+    # (works with array inputs too)
     def getCount(self, time_s):
         return self.count[np.searchsorted(self.time, time_s)]
+    
+    def getCountDeltas(self, time_s):
+        counts = self.getCount(time_s)
+        deltaCount = np.zeros(0, dtype = int)
+        
+        for i in range(len(counts[0:-1])):
+            deltaCount = np.append(deltaCount, counts[i+1] - counts[i])
+            
+        return deltaCount
         
 # Start the procedure here
 omega_0 = 85 #Hz
-theta_0 = 0.3 #revs
+theta_0 = 0 #revs
 
 dt = 1/120e6 #seconds (twice as fast as CPU sampling rate, just to ensure no artifacts)
 numRevs = 3
@@ -107,6 +118,7 @@ omega = omega_0*np.exp(-gamma*t)
 theta_actual = scipy.integrate.cumtrapz(omega, t, initial = theta_0)
 theta_actual[1:] += theta_0
 
+"""
 plt.subplot(2,1,1)
 plt.plot(t, omega)
 plt.ylabel('speed (revs/s)')
@@ -115,23 +127,24 @@ plt.subplot(2,1,2)
 plt.plot(t, theta_actual % 1.0)
 plt.ylabel('angle (revs)')
 plt.xlabel('time (s)')
+"""
 
+ftm = FTMCounter(60e6, 4096, t)
 shaftEncoder = USDigitalE2Encoder()
+perfectEncoder = PerfectEncoder(100)
 
-actualPositionInCounts = theta_actual*shaftEncoder.getCountsPerRevolution()
-measuredPositionInCounts = shaftEncoder.measure(theta_actual)
-measuredEdges = shaftEncoder.findEdges(theta_actual)
+actualPosInCounts = theta_actual*shaftEncoder.getCountsPerRevolution()
+measuredPosInCounts = shaftEncoder.measure(theta_actual)
+measuredEdgeIndices = shaftEncoder.findEdges(theta_actual)
+measuredCountDeltas = ftm.getCountDeltas(t[measuredEdgeIndices])
 
+"""
 plt.figure(2)
-plt.plot(t, measuredPositionInCounts)
-plt.plot(t, measuredEdges)
-plt.xlabel('time (s)')
-
-plt.figure(3)
 plt.plot(t, actualPositionInCounts - measuredPositionInCounts)
 plt.ylabel('actual - shaft encoder (counts)')
 plt.xlabel('time (s)')
+"""
 
-perfectEncoder = PerfectEncoder(100)
-perfectMeasPositionInCounts = perfectEncoder.measure(theta_actual)
-plt.plot(t, actualPositionInCounts - perfectMeasPositionInCounts)
+perfectPosInCounts = perfectEncoder.measure(theta_actual)
+perfectEdgeIndices = perfectEncoder.findEdges(theta_actual)
+perfectCountDeltas = ftm.getCountDeltas(t[perfectEdgeIndices])

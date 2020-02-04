@@ -1,50 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-Written by A. Berger on 12/17/2018
+Written by A. Berger on 1/28/2020
 
-This program imports angular position data acquired at nominally-constant speed
-(fixed current) for intermediate motor frequencies (~20 Hz) where the angular deviations are dominated
-by encoder error
-
-The program calculates the residual angle (deviation from uniform speed), and resamples
-that data to create a look-up-table to correct the encoder angular measurement readings
+This program is derived from torqueCorrection.py. Instead of importing angular
+position data, the program requires ordered pairs of motor.phase and 
+instr.phase_PID.output. This program simply resamples instr.phase_PID.output
+for use as a look-up-table for feedforward corrections of phase PID
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import sqrt, pi, exp, linspace, random
 
-#data used for angle calibration (acquired at 22 Hz)
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22.txt'
+#data with angle correction, for torque calibration:
+filename = r'D:\Documents\Projects\SR544\Data\phasePIDoutout_vs_motorPhase.csv'
 
-#alternative filename
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.27Hz_noCorr.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_2.3Hz_torqueCorr.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\.008SR544\tools\angleRecord_8Y16_A_2.3Hz_angle_torqueCorr.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22Hz_angle_torqueCorr.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_22_att3Hz.txt'
-
-data = np.loadtxt(filename, delimiter=' ', usecols=[0], skiprows=0)
-
-#dt = 0.004369066688 #assumes data is being sampled at ~4 ms
-                    #based on an FTM3PERIOD_S = 6.8266667e-5
-                    #and a PID_PRESCALE = 64
-dt = 4096/60e6
+data = np.loadtxt(filename, delimiter=',', usecols=[0,1], skiprows=1)
                     
-N = len(data[0:5000]) #discarding first point
-time = linspace(0,(N-1)*dt,N)
-rawAngle = 2*pi*data[0:5000]/(2**32) #in 
-
-   
-uwAngle = np.unwrap(rawAngle) #in rad
-
-p = np.polyfit(time,uwAngle,1)
-    
-resAngle = uwAngle - np.polyval(p,time)
-    
-plt.figure(1)
-plt.plot(rawAngle,resAngle,marker='o',linestyle='none')
+N = len(data[4972:9969,0])
+rawAngle = 2*pi*data[4972:9969,0]/(2**32) #in rad
+output = data[4972:9969,1]
 
 def resample(x,y,numPts):
     """
@@ -70,19 +45,19 @@ def resample(x,y,numPts):
         total = 0
         j = 0 #iterator over y values
         for value in x:
-            if(x_n <= value < x_n + dx):
+            if(x_n - dx/2 <= value < x_n + dx/2):
                 total += y[j]
                 n += 1
             j += 1
-            
+        
         y_resamp[i] = total/n
-        #print(res_avg[i])
+        #print(y_resamp[i])
         
         #again iterate over y values to calculate standard deviation
         sum_sq = 0
         j = 0
         for value in x:
-            if(x_n <= value < x_n + dx):
+            if(x_n - dx/2 <= value < x_n + dx/2):
                 sum_sq += (y[j] - y_resamp[i])**2
             j += 1
             
@@ -156,18 +131,31 @@ def smooth(x,window_len=11,window='hanning'):
     # crop convolved signal
     return y[int(window_len/2):-int(window_len/2)]
 
-# the first and last several points deviate from the majority behavior. Throw them away
-discardPts = 5
-#plt.plot(rawAngle[discardPts:-discardPts],alpha_smth[discardPts:-discardPts],marker='.',linestyle='none')
+
 
 #downsample the smoothed data to create a look-up-table based on the 100-point encoder count
 N_encoder = 100
-[tickCount,resAngle_avg,resAngle_std] = resample(rawAngle[discardPts:-discardPts],resAngle[discardPts:-discardPts],N_encoder)
+[tickCount, output_avg, output_std] = resample(rawAngle, output, N_encoder)
+meanOutput = np.mean(output_avg)
+output_avg -= meanOutput
 
-plt.errorbar(tickCount,resAngle_avg, yerr=resAngle_std,color='orange', marker='.',linestyle='None')
+#convert current (as a float) to a frac16_t
+current_Q_F16 = 0x8000*output_avg
+
+np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
+
+
+plt.figure(1)
+plt.plot(rawAngle, output - meanOutput, marker='o',linestyle='none')
+plt.errorbar(tickCount, output_avg, yerr=output_std, color='orange', marker='.', linestyle='None')
 plt.xlabel('motor angle (rad)')
-plt.ylabel('residual angle (rad)')
+plt.ylabel('output (frac of FS)')
 
-angleCorr_int32 = np.asarray([int(x) for x in (2**32)*resAngle_avg/(2*pi)])
+fig, ax1 = plt.subplots()
+ax1.set_xlabel('tick count')
+ax1.set_ylabel('current correction (FRAC16)')
+ax1.plot(current_Q_F16)
 
-#np.savetxt(r'D:\Documents\Projects\SR544\Data\angleCorr_LUT.txt',angleCorr_int32,newline=',\r\n',fmt='%d')
+ax2 = ax1.twinx()
+ax2.set_ylabel('current correction/full scale')
+ax2.plot(output_avg)

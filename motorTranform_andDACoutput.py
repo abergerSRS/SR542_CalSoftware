@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+q# -*- coding: utf-8 -*-
 """
 Written by A. Berger on 12/5/2018
 
@@ -35,8 +35,8 @@ def invPark_withCorr(V_D, V_Q, motorAngle):
     theta = motorAngle*2*pi/65536
     tickCount = np.floor(motorAngle*100/65536).astype(int)
     
-    V_alpha = V_D*np.cos(theta) - (V_Q + 10*Q_corr[tickCount])*np.sin(theta)
-    V_beta = V_D*np.sin(theta) + (V_Q + 10*Q_corr[tickCount])*np.cos(theta)
+    V_alpha = V_D*np.cos(theta) - (V_Q + 80*Q_corr[tickCount])*np.sin(theta)
+    V_beta = V_D*np.sin(theta) + (V_Q + 80*Q_corr[tickCount])*np.cos(theta)
     
     return [V_alpha,V_beta]
 
@@ -51,7 +51,7 @@ def invClarke(V_alpha, V_beta, motorAngle):
 def RoundTo12BitOutput(arrayIn):
     return np.rint(arrayIn*(2**12))
 
-V_Q = 0.05
+V_Q = 0.5
 V_D = 0
  
 #without Q-axis correction   
@@ -81,9 +81,9 @@ plt.plot(theta,V_V,'m')
 """
 
 plt.figure(3)
-plt.plot(theta,Out_U - Out_U_corr,'r',marker='.')
-plt.plot(theta,Out_V - Out_V_corr,'g',marker='.')
-plt.plot(theta,Out_W - Out_W_corr,'b',marker='.')
+plt.plot(theta,Out_U_corr,'r',marker='.')
+plt.plot(theta,Out_V_corr,'g',marker='.')
+plt.plot(theta,Out_W_corr,'b',marker='.')
 plt.legend(('U','V','W'))
 plt.xlabel('motor angle (rad)')
 plt.ylabel('DAC output (DAC code)')

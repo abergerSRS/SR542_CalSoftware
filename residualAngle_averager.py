@@ -74,9 +74,10 @@ for x_n in x:
         slope[i] = (res_avg[i+1] - res_avg[i])/dx
     
     #large slope rejection
+    """
     if(np.abs(slope[i]) > 0.005):
         slope[i] = 0
-    
+    """
     i += 1
     
 #finally, check the calibration

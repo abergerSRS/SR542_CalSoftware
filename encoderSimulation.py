@@ -11,6 +11,8 @@ import numpy as np
 import scipy.integrate
 import matplotlib.pyplot as plt
 
+plt.close('all')
+
 class GenericEncoder(object):
     def getCountsPerRevolution(self):
         return len(self.points)
@@ -18,9 +20,9 @@ class GenericEncoder(object):
     # Given: an array of actual positions (in revs)
     # Return: an ordered pair of encoder position count, and number of revolutions
     def measureRaw(self, actualPos):
-        positionInRevolution = (np.array(actualPos) - self.points[0]) % 1.0
-        posCount = (np.searchsorted(self.points, positionInRevolution, side='right'))-1
-        numRevolutions = ((actualPos - self.points[0])//1).astype(int)
+        numRevolutions = ((actualPos - self.points[0])//1).astype(int)        
+        positionInRevolution = np.array(actualPos) - numRevolutions
+        posCount = (np.searchsorted(self.points, positionInRevolution, side='right'))-1        
         return (posCount, numRevolutions)
     
     # Given: an array of actual positions (in revs)
@@ -116,7 +118,7 @@ class FTMCounter():
         
 # Start the procedure here
 omega_0 = 85 #Hz
-theta_0 = 0 #revs
+theta_0 = 0.3 #revs
 
 dt = 1/120e6 #seconds (twice as fast as CPU sampling rate, just to ensure no artifacts)
 numRevs = 3

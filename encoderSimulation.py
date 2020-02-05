@@ -4,7 +4,9 @@ Created on Mon Feb  3 11:05:16 2020
 
 @author: aberger
 
-This program attempts to simulate optical encoder error
+This program to simulates and corrects optical encoder error from:
+    1. random error in the encoder tick locations
+    2. sinusoidal runout from non-colinear mounting of the encoder on the rotation axis
 """
 
 import numpy as np
@@ -83,7 +85,7 @@ class USDigitalE2Encoder(GenericEncoder):
         encoderCount = np.linspace(0, N_enc-1, N_enc)
         self.points = encoderCount/N_enc
         # Add the random angle error
-        self.points += angleError_elecDegs/(360*len(angleError_elecDegs))
+        self.points += angleError_elecDegs/(360*N_enc)
         # Add sinusoidal run-out
         runOutMagnitude_revs = 2e-4
         self.points += runOutMagnitude_revs*np.sin((encoderCount - 27)/N_enc*2*np.pi)
@@ -193,20 +195,33 @@ fig3.tight_layout()
 """
 Now calculate the corrections -------------------------------------------------
 """
-indexTickZero = np.where(measPosAtEdge == 0)[0][0]
-actualTickPos = np.cumsum(measuredTickSpacing[(indexTickZero-1):(indexTickZero-1 + N_enc)])
-deltaTick = actualTickPos - (encoderCount+1)/N_enc
+indexOfTickZero = np.where(measPosAtEdge == 0)[0][0]
+# When the n-th edge is detected, the (n-1)-st spacing can be calculated
+fig4, (ax4a, ax4b) = plt.subplots(2, 1, sharex=True)
+ax4a.plot(encoderCount, shaftEncoder.tickSpacing)
+ax4a.plot(measPosAtEdge[indexOfTickZero:indexOfTickZero+N_enc], measuredTickSpacing[indexOfTickZero-1:indexOfTickZero-1+N_enc])
+ax4a.set_ylabel('tick spacing (revs)')
+ax4a.legend(('actual', 'measured'))
+ax4b.plot(encoderCount, shaftEncoder.tickSpacing - measuredTickSpacing[indexOfTickZero-1:indexOfTickZero-1+N_enc], color='red', label='difference')
+ax4b.set_ylabel('tick spacing (revs)')
+ax4b.legend()
+ax4b.set_xlabel('encoder count')
+fig4.tight_layout()
+
+distFromZerothTick = np.cumsum(measuredTickSpacing[(indexOfTickZero-1):(indexOfTickZero-1 + N_enc)]) - 1/N_enc
+distFromZerothTick -= distFromZerothTick[0]
+deltaTick = (encoderCount)/N_enc - distFromZerothTick
 
 """
 And re-run the experiment -----------------------------------------------------
 """
-corrPos = measuredPosInCounts + deltaTick[measuredPosInCounts%N_enc]*N_enc
-fig4, ax4 = plt.subplots()
-ax4.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - measuredPosInCounts[measuredEdgeIndices]/N_enc)
-ax4.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - corrPos[measuredEdgeIndices]/N_enc)
-ax4.set_xlabel('time (s)')
-ax4.set_ylabel('angle error (revs)')
-ax4.legend(('uncorrected', 'corrected'))
-ax4.set_title('Difference between actual and measured angle,\n sampled at encoder edges')
-fig4.tight_layout()
+corrPos = measuredPosInCounts - deltaTick[measuredPosInCounts%N_enc]*N_enc
+fig5, ax5 = plt.subplots()
+ax5.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - measuredPosInCounts[measuredEdgeIndices]/N_enc)
+ax5.plot(t[measuredEdgeIndices], theta_actual[measuredEdgeIndices] - corrPos[measuredEdgeIndices]/N_enc)
+ax5.set_xlabel('time (s)')
+ax5.set_ylabel('angle error (revs)')
+ax5.legend(('uncorrected', 'corrected'))
+ax5.set_title('Difference between actual and measured angle,\n sampled at encoder edges')
+fig5.tight_layout()
 

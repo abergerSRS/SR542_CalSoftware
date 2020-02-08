@@ -11,10 +11,13 @@ This program imports four columns of data:
     4. input capture of chop edges on "free running" 60 MHz FTM counter
 """
 
-
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import sqrt, pi, exp, linspace, random
+import os
+
+# custom modules
+import fileWriter
 
 plt.close('all')
 
@@ -137,6 +140,9 @@ ax2.legend()
 ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
+tickSpacingRescale = .01/avgTickSpacing
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'tickRescale')
+
 # For N_revs worth of data, calculate the cumulative distance from tick 0 to tick k
 distFromZerothTick = np.zeros((N_enc, N_revs))
 i = 0
@@ -191,8 +197,4 @@ ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
 angleCorr_int32 = avgTickCorrection*2**32
-
-import fileWriter
-import os
-
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32)
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32, 'angleComp')

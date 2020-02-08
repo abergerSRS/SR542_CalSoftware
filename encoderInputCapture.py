@@ -18,7 +18,8 @@ from numpy import sqrt, pi, exp, linspace, random
 
 plt.close('all')
 
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
 
@@ -162,8 +163,10 @@ stdTickCorrection = np.std(tickCorrection, axis=1)
 # there will be some angle-indepedent offset imparted by the tick correction)
 offsetTickCorrection = np.mean(avgTickCorrection)
 
+avgTickCorrection -= offsetTickCorrection
+
 fig3, ax3 = plt.subplots()
-ax3.errorbar(encoderCount, avgTickCorrection - offsetTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0)
+ax3.errorbar(encoderCount, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0)
 ax3.set_xlabel('encoder count')
 ax3.set_ylabel('tick correction (revs)')
 ax3.set_title('Tick correction, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
@@ -186,3 +189,10 @@ ax4.set_xlabel('time (s)')
 ax4.set_ylabel('speed error (revs/s)')
 ax4.set_title('Speed error comparison')
 fig4.tight_layout()
+
+angleCorr_int32 = avgTickCorrection*2**32
+
+import fileWriter
+import os
+
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32)

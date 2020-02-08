@@ -23,7 +23,7 @@ from numpy import sqrt, pi, exp, linspace, random
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\.008SR544\tools\angleRecord_8Y16_A_2.3Hz_angle_torqueCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_22Hz_angle_torqueCorr.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\angleRecord_8Y16_A_3.5Hz_angle_torqueCorr.txt'
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_22_att3Hz.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\spinDownAngleArray_22_att2Hz.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0], skiprows=0)
 

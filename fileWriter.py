@@ -6,7 +6,7 @@ Created on Fri Feb  7 15:20:01 2020
 """
 import datetime
 
-def saveDataWithHeader(scriptName, dataFileName, dataArray, destFilename):
+def saveDataWithHeader(scriptName, dataFileName, dataArray, cDataType, width, destFilename):
     
     fileDir = 'D:\\Documents\\MCUXpressoIDE_10.1.0_589\\workspace\\SR544\\utilities\\'
     filepath = fileDir + destFilename + '.c'
@@ -17,13 +17,13 @@ def saveDataWithHeader(scriptName, dataFileName, dataArray, destFilename):
     file.write(' * using data from\n')
     file.write(' * '+dataFileName)
     file.write('\n*/\n\n')
-    file.write('#include "angleComp.h"\n\n')
-    file.write('const int32_t '+destFilename+'[100] = {\n')
+    file.write('#include "'+destFilename+'.h"\n\n')
+    file.write('const '+cDataType+' '+destFilename+'[100] = {\n')
     for i, element in enumerate(dataArray):
         if i < (len(dataArray)-1):
-            file.write(f'     {element:.0f},\n')
+            file.write(f'     {element:{width}},\n')
         else:            
-            file.write(f'     {element:.0f}\n')
+            file.write(f'     {element:{width}}\n')
             
     file.write('};')
     

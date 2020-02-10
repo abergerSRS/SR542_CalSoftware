@@ -141,7 +141,7 @@ ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
 tickSpacingRescale = .01/avgTickSpacing
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'tickRescale')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale')
 
 # For N_revs worth of data, calculate the cumulative distance from tick 0 to tick k
 distFromZerothTick = np.zeros((N_enc, N_revs))
@@ -197,4 +197,4 @@ ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
 angleCorr_int32 = avgTickCorrection*2**32
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32, 'angleComp')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')

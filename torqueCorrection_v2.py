@@ -16,6 +16,10 @@ torque non-uniformity
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import sqrt, pi, exp, linspace, random
+import os
+
+# custom modules
+import fileWriter
 
 plt.close('all')
 
@@ -209,9 +213,9 @@ ax4.plot(tickCount_spd, alpha_spd_avg)
 ax4.set_xlabel('rotor angle (rad)')
 ax4.set_ylabel('accel (rad/s^2)')
 ax4.legend((r'$\theta(t)$', r'$\Delta_{FTM}(t)$'))
-"""
+
 #convert angular acceleration (alpha) to torque, and then current
-torque = moment*alpha_avg
+torque = moment*alpha_ang_avg
 current_corr = torque/torqueConst #in Amps
 
 #currently, the output current is scaled such that full-scale = 1.65 A
@@ -219,7 +223,7 @@ current_corr = current_corr/1.65 #as a float
 
 #convert current (as a float) to a frac16_t
 current_Q_F16 = 0x8000*current_corr
-
+"""
 np.savetxt(r'D:\Documents\Projects\SR544\Data\torqueCorr_LUT.txt',current_Q_F16,newline=',\r\n',fmt='%d')
 
 
@@ -238,3 +242,5 @@ ax2 = ax1.twinx()
 ax2.set_ylabel('current correction/full scale')
 ax2.plot(current_Q_F16/(2**15))
 """
+
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_Q_F16.astype(int), 'frac16_t', 0, 'currentQcomp')

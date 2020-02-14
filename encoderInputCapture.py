@@ -23,6 +23,7 @@ plt.close('all')
 
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
 filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
 
@@ -30,6 +31,10 @@ encCount = data[:,0]
 encEdge = data[:,1]
 chopCount = data[:,2]
 chopEdge = data[:,3]
+
+# I used an 8-bit counter for chopCount. And np.unwrap works on values in radians
+chopCount_rad = chopCount/256*2*pi 
+uwChopCount = (np.unwrap(chopCount_rad)*256/(2*pi)).astype(int)
 
 N_samples = len(encCount)
 N_enc = 100 #number of ticks on shaft encoder
@@ -41,6 +46,13 @@ dt = FTM_MOD/f_FTM
 t = np.linspace(0, dt*N_samples, N_samples)
 encoderCount = np.linspace(0, N_enc - 1, N_enc)
 
+class RotaryEncoder():
+    def __init__(self, N_ticks):
+        self.N_ticks = N_ticks
+        self.tickArray = np.linspace(0, self.N_ticks - 1, self.N_ticks)
+        self.avgTickSpacing = np.zeros(len(N_ticks))
+        self.tickCorrection = np.zeros(len(N_ticks))
+
 # Given: integer counts, FTM input captured CnV values @ edges, time array
 # Return: 
 #1. integer count at edge corresponding to CnV_i, 
@@ -50,11 +62,11 @@ def measureCountDeltas(counts, edges, time):
     count1 = np.zeros(0)
     delta = np.zeros(0)
     t1 = np.zeros(0)
-    for i, count in enumerate(counts[1:], start=1):
-        if counts[i] != counts[i-1]:
+    for i, edge in enumerate(edges[1:], start=1):
+        if edge != edges[i-1]:
             count1 = np.append(count1, counts[i])
             t1 = np.append(t1, time[i])
-            delta = np.append(delta, edges[i] - edges[i-1])
+            delta = np.append(delta, edge - edges[i-1])
             
     return count1, delta, t1
 
@@ -76,9 +88,22 @@ def movingAverage(data, windowSize):
     
     return avg
 
+def findIndexOfNearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+def findWrapArounds(array):
+    wrapIndex = np.zeros(0, dtype='int')
+    for i, val in enumerate(array):
+        if val - array[i-1] < 0:
+            wrapIndex = np.append(wrapIndex, i)
+            
+    return wrapIndex
+
 # First, calculate the delta FTM counts
 encCountAtDelta, encDelta, encTimeAtDelta = measureCountDeltas(encCount, encEdge, t)
-chopCountAtDelta, chopDelta, chopTimeAtDelta = measureCountDeltas(chopCount, chopEdge, t)
+chopCountAtDelta, chopDelta, chopTimeAtDelta = measureCountDeltas(uwChopCount, chopEdge, t)
 
 # This can be easily converted to delta t in seconds
 encDeltaT_sec = encDelta/f_FTM
@@ -92,16 +117,15 @@ chopSpeed = 1/(N_chop*chopDeltaT_sec)
 # encoder errors (window size >= N_enc)
 windowSize = 250
 avgEncSpeed = movingAverage(encSpeed, windowSize)
-avgChopSpeed = movingAverage(chopSpeed, windowSize) #not currently using this data
 
 # Plot Speed vs Time
 fig1, ax1 = plt.subplots()
 ax1.plot(encTimeAtDelta[1:], encSpeed[1:])
 ax1.plot(encTimeAtDelta[1:], avgEncSpeed[1:])
+ax1.plot(chopTimeAtDelta[1:], chopSpeed[1:], marker='.')
 ax1.set_ylim(min(encSpeed[1:]), max(encSpeed[1:]))
 ax1.set_xlabel('time (s)')
 ax1.set_ylabel('speed (rev/s)')
-ax1.legend(('shaft encoder','windowed average, N='+str(windowSize)))
 ax1.set_title('Free Spindle Decay: speed vs. time')
 
 # The main step of the calibration is to convert the delta t measurements
@@ -109,27 +133,40 @@ ax1.set_title('Free Spindle Decay: speed vs. time')
 # shaft speed 
 encTickSpacing = avgEncSpeed*encDeltaT_sec
 
-# In order to align the tick spacing measurements to encoderCount = 0, find 
-# all instances of the encoder count where == 0:
-indexOfZerothTick = np.where(encCountAtDelta == 0)
+# To do the same for the chopper blade requires using the avgEncSpeed *at the 
+# same instant in time* as when a chopDeltaT_sec was measured
+chopTickSpacing = np.zeros(len(chopDeltaT_sec))
+for i, t in enumerate(chopTimeAtDelta):
+    chopTickSpacing[i] = avgEncSpeed[findIndexOfNearest(encTimeAtDelta, t)]*chopDeltaT_sec[i]
 
-# And wait at least numRevsToWait revolutions before considering data
-numRevsToWait = 3
-startingIndexOfFirstGoodRev = indexOfZerothTick[0][numRevsToWait]
+# create an array against which to plot the chopTickSpacing
+chopTrackCount = np.linspace(0, len(chopTickSpacing)-1, len(chopTickSpacing), dtype=int)
+# chopCountAtDelta is somewhat unreliable due to non-atomic reads during 
+# firmware execution. chopTrackCount provides a uniform counter that is reliably
+# incremented for each new measured chopTickSpacing
+chopTrackCount += int(chopCountAtDelta[0])
 
-N_revs = 10
-# Find the average and stdev of tick spacing over N_revs revolutions
-measTickSpacing = np.zeros((N_enc, N_revs))
-i = 0
-for index in indexOfZerothTick[0]:
-    if i >= N_revs:
-        break
-    if index > numRevsToWait*N_enc:
-        #distFromZerothTick[k, i]:
-        measTickSpacing[:,i] = (encTickSpacing[index:index+N_enc])
-        i += 1
-avgTickSpacing = np.mean(measTickSpacing, axis=1)
-stdTickSpacing = np.std(measTickSpacing, axis=1)
+# Find the average and stdev of tick spacing over N_revsToAvg revolutions
+def CalculateAvgTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
+    measTickSpacing = np.zeros((N_ticks, N_revsToAvg))
+    indexOfZerothTick = np.where(rawCountAtDelta == 0)
+    i = 0
+    for index in indexOfZerothTick[0]:
+        if i >= N_revsToAvg:
+            break
+        if index > N_revsToWait*N_ticks:
+            #distFromZerothTick[k, i]:
+            measTickSpacing[:,i] = (tickSpacing_revs[index:index+N_ticks])
+            i += 1
+    avgTickSpacing = np.mean(measTickSpacing, axis=1)
+    stdTickSpacing = np.std(measTickSpacing, axis=1)
+    
+    return (avgTickSpacing, stdTickSpacing)
+
+(avgTickSpacing, stdTickSpacing) = CalculateAvgTickSpacing(N_enc, 10, 3, encTickSpacing, encCountAtDelta)
+# find the chop count when the rotor angle == 0
+chopCountZero = uwChopCount[findWrapArounds(encCount)][0]
+(avgChopSpacing, stdChopSpacing) = CalculateAvgTickSpacing(N_chop, 10, 10, chopTickSpacing, (chopTrackCount-chopCountZero)%N_chop)
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing, yerr=stdTickSpacing, marker='.', capsize=4.0, label='average')
@@ -143,39 +180,51 @@ fig2.tight_layout()
 tickSpacingRescale = .01/avgTickSpacing
 fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale')
 
-# For N_revs worth of data, calculate the cumulative distance from tick 0 to tick k
-distFromZerothTick = np.zeros((N_enc, N_revs))
-i = 0
-for index in indexOfZerothTick[0]:
-    if i >= N_revs:
-        break
-    if index > numRevsToWait*N_enc:
-        #distFromZerothTick[k, i]:
-        distFromZerothTick[:,i] = np.cumsum(encTickSpacing[index:index+N_enc]) - 1/N_enc
-        i += 1
+# For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
+def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
+    distFromZerothTick_revs = np.zeros((N_ticks, N_revsToAvg))
+    indexOfZerothTick = np.where(rawCountAtDelta == 0)
+    i = 0
+    for index in indexOfZerothTick[0]:
+        if i >= N_revsToAvg:
+            break
+        if index > N_revsToWait*N_ticks:
+            #distFromZerothTick[k, i]:
+            distFromZerothTick_revs[:,i] = np.cumsum(tickSpacing_revs[index:index+N_ticks]) - 1/N_ticks
+            i += 1
+            
+    # The tick correction is then simply the difference between the expected tick position
+    # (encoderCount/N_enc) and the measured distFromZerothTick
+    tickCorrection_revs = np.zeros((N_ticks, N_revsToAvg))
+    encoderCount = np.linspace(0, N_ticks - 1, N_ticks)
+    for i, col in enumerate(distFromZerothTick_revs.T):
+        tickCorrection_revs[:,i] = encoderCount/N_ticks - col
         
-# The tick correction is then simply the difference between the expected tick position
-# (encoderCount/N_enc) and the measured distFromZerothTick
-tickCorrection = np.zeros((N_enc, N_revs))
-for i, col in enumerate(distFromZerothTick.T):
-    tickCorrection[:,i] = encoderCount/N_enc - col
+    # Calculate the average and standard deviation of the tick corrections to check
+    # for reproducibility
+    avgTickCorrection = np.mean(tickCorrection_revs, axis=1)
+    stdTickCorrection = np.std(tickCorrection_revs, axis=1)
+    
+    return (avgTickCorrection, stdTickCorrection)
 
-# Calculate the average and standard deviation of the tick corrections to check
-# for reproducibility
-avgTickCorrection = np.mean(tickCorrection, axis=1)
-stdTickCorrection = np.std(tickCorrection, axis=1)
-
+(avgTickCorrection, stdTickCorrection) = ConvertSpacingToCorrections(N_enc, 10, 3, encTickSpacing, encCountAtDelta)
+(avgChopCorrection, stdChopCorrection) = ConvertSpacingToCorrections(N_chop, 10, 10, chopTickSpacing, (chopTrackCount-chopCountZero)%N_chop)
+            
 # Assume that the average tick correction over one cycle is zero (otherwise,
 # there will be some angle-indepedent offset imparted by the tick correction)
 offsetTickCorrection = np.mean(avgTickCorrection)
+offsetChopCorrection = np.mean(avgChopCorrection)
 
 avgTickCorrection -= offsetTickCorrection
+avgChopCorrection -= offsetChopCorrection
 
 fig3, ax3 = plt.subplots()
-ax3.errorbar(encoderCount, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0)
-ax3.set_xlabel('encoder count')
-ax3.set_ylabel('tick correction (revs)')
-ax3.set_title('Tick correction, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
+ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0)
+ax3.errorbar(np.linspace(0, N_chop-1, N_chop)/N_chop*360, avgChopCorrection, yerr=stdChopCorrection, marker='.', capsize=4.0)
+ax3.set_xlabel('rotor angle (deg)')
+ax3.set_ylabel('tick error (mech. revs)')
+ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
+ax3.legend(('shaft encoder', 'chop track, N='+str(N_chop)))
 fig3.tight_layout()
 
 """
@@ -184,8 +233,10 @@ Test the correction -----------------------------------------------------------
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
 corrSpeed = encSpeed*(avgTickSpacing[encCountAtDelta.astype(int)]/(1/N_enc))
+corrChopSpeed = chopSpeed*(avgChopSpacing[(chopTrackCount-chopCountZero)%N_chop]/(1/N_chop))
 ax1.plot(encTimeAtDelta[1:], corrSpeed[1:])
-ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize), 'corrected speed'))
+ax1.plot(chopTimeAtDelta[1:], corrChopSpeed[1:], marker='.')
+ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize), 'chop track, N='+str(N_chop), 'corrected encoder speed', 'corrected chop speed'))
 
 fig4, ax4 = plt.subplots()
 ax4.plot(encTimeAtDelta[1:], avgEncSpeed[1:] - encSpeed[1:])

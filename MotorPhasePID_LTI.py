@@ -24,9 +24,20 @@ Gamma = K_D*omega_final #assuming linear damping, Gamma*omega
 
 #from motor PID tuning. In firmware, these constants are defined with respect
 #to motor phase in revs. Transfer function is given in terms of rad
+
+#To include the effect of speed PID:
+# k_p = k_p,phase + k_i,speed
+# k_i = k_i,phase (no change)
+# k_d = k_d,phase + k_p,speed
+k_p = (2 + 0.0184)/(2*pi)      
+k_i = 0.5/(2*pi)      
+k_d = (5 + .0231)/(2*pi)
+
+"""
 k_p = 0.5/(2*pi)      
 k_i = 0.5/(2*pi)      
-k_d = 0.75/(2*pi)
+k_d = 5/(2*pi)
+"""
 
 """
 motor transfer function

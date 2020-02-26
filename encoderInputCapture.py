@@ -181,10 +181,11 @@ def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawC
     return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
 
 (lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing_start200, lsStdTickSpacing_start200) = LeastSquaresTickSpacing(N_enc, 10, 3, 200, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing, yerr=stdTickSpacing, marker='.', capsize=4.0, label='no circular closure', zorder=0)
-ax2.errorbar(encoderCount, lsAvgTickSpacing, yerr=lsStdTickSpacing, marker='.', capsize=4.0, label='circular closure w/ least sq.', zorder=0)
+ax2.errorbar(encoderCount, lsAvgTickSpacing, yerr=lsStdTickSpacing, marker='.', capsize=4.0, label='circular closure, start = 0', zorder=0)
 ax2.plot(encoderCount, 1/N_enc*np.ones(N_enc), '--', label='ideal', zorder=1)
 ax2.set_xlabel('encoder count')
 ax2.set_ylabel(r'$\Delta \theta$ (revs)')
@@ -193,7 +194,7 @@ ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
 tickSpacingRescale = 1/(N_enc*lsAvgTickSpacing)
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale')
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
@@ -240,12 +241,14 @@ avgTickCorrection -= offsetTickCorrection
 
 # Tick Corrections *with* circular closure
 lsTickCorrection = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing)
+lsTickCorrection_start200 = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing_start200)
 lsOffset = np.mean(lsTickCorrection)
 lsTickCorrection -= lsOffset
 
 fig3, ax3 = plt.subplots()
-ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure w/ least sq.')
-ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0, label='no circular closure')
+ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
+ax3.plot(encoderCount/N_enc*360, lsTickCorrection_start200 - np.mean(lsTickCorrection_start200), label = 'circular closure, start = 200')
+#ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0, label='no circular closure')
 ax3.set_xlabel('rotor angle (deg)')
 ax3.set_ylabel('tick error (mech. revs)')
 ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
@@ -257,7 +260,7 @@ Test the correction -----------------------------------------------------------
 """
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
-corrSpeed = encSpeed*(lsAvgTickSpacing[encCountAtDelta.astype(int)]/(1/N_enc))
+corrSpeed = encSpeed/tickSpacingRescale[encCountAtDelta.astype(int)]
 ax1.plot(encTimeAtDelta[1:], corrSpeed[1:])
 ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize), 'corrected encoder speed'))
 
@@ -270,5 +273,5 @@ ax4.set_ylabel('speed error (revs/s)')
 ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
-angleCorr_int32 = avgTickCorrection*2**32
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+angleCorr_int32 = lsTickCorrection*2**32
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')

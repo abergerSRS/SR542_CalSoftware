@@ -159,9 +159,9 @@ def CalculateAvgTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs
 # 4. b = measured Delta T's, with a final element of one
 # 5. The augmented elements of A and b enforce circular closure such that:
 # sum_i x_i = 1 (the sum of all tick spacings over one revolution should equal one revolution)
-def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, rawCountAtDelta, speed, deltaT):
+def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCountAtDelta, speed, deltaT):
     measTickSpacing = np.zeros((N_ticks, N_revsToAvg))
-    indexOfZerothTick = np.where(rawCountAtDelta == 0)
+    indexOfZerothTick = np.where(rawCountAtDelta == startCount)
     i = 0
     for index in indexOfZerothTick[0]:
         if i >= N_revsToAvg:
@@ -178,9 +178,9 @@ def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, rawCountAtDelta,
     avgTickSpacing = np.mean(measTickSpacing, axis=1)
     stdTickSpacing = np.std(measTickSpacing, axis=1)
     
-    return (avgTickSpacing, stdTickSpacing)
+    return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
 
-(lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing, yerr=stdTickSpacing, marker='.', capsize=4.0, label='no circular closure', zorder=0)

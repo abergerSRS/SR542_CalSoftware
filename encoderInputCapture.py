@@ -22,11 +22,11 @@ import fileWriter
 plt.close('all')
 
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
+filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt'
 
 # 400 count encoder
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt'
+#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt'
 #filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt'
 
 data = np.loadtxt(filename, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
@@ -35,7 +35,7 @@ encCount = data[:,0]
 encEdge = data[:,1]
 
 N_samples = len(encCount)
-N_enc = 400 #number of ticks on shaft encoder
+N_enc = 100 #number of ticks on shaft encoder
 f_FTM = 60e6 #Hz
 FTM_MOD = 4096 #FTM_MOD for the FTM peripheral used to collect these data
 
@@ -194,7 +194,7 @@ ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
 tickSpacingRescale = 1/(N_enc*lsAvgTickSpacing)
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale100')
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
@@ -274,4 +274,4 @@ ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
 angleCorr_int32 = lsTickCorrection*2**32
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')

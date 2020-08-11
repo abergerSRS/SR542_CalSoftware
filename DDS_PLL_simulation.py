@@ -9,10 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy import linspace
 
-f_ref = 50      #Hz
-f_FTM = 60e3    #Hz
+f_ref = 10e3      #Hz
+f_FTM = 60e6    #Hz
 
-mod_FTM = int(64)
+mod_FTM = int(1024)
 f_DDS = f_FTM/mod_FTM
 
 T_ref = 1/f_ref #s
@@ -22,10 +22,10 @@ total_time = 2*T_ref
 dt = T_FTM
 N = int(total_time/dt)
 
-t = linspace(0,total_time,N)
-n = np.arange(0,N,1,dtype=int)
+t = linspace(0, total_time, N)
+n = np.arange(0, N, 1, dtype=int)
 
-FTM_CNT = n%(mod_FTM-1)
+FTM_CNT = n%(mod_FTM)
 
 DDS_phase = np.zeros(N)
 linear_phase = (t/T_ref)%1
@@ -42,9 +42,9 @@ for x in FTM_CNT:
     
 phase_error = DDS_phase - linear_phase
 
-plt.plot(t,FTM_CNT/mod_FTM,marker='o')
-plt.plot(t,DDS_phase)
-plt.plot(t,linear_phase)
+plt.plot(t, FTM_CNT/mod_FTM, marker='o')
+plt.plot(t, DDS_phase)
+plt.plot(t, linear_phase)
 plt.xlabel('time (s)')
 
 plt.figure(2)

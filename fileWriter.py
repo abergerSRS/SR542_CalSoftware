@@ -18,7 +18,7 @@ def saveDataWithHeader(scriptName, dataFileName, dataArray, cDataType, width, de
     file.write(' * '+dataFileName)
     file.write('\n*/\n\n')
     file.write('#include "'+destFilename+'.h"\n\n')
-    file.write('const '+cDataType+' '+destFilename+'[100] = {\n')
+    file.write('const '+cDataType+' '+destFilename+'['+str(len(dataArray))+'] = {\n')
     for i, element in enumerate(dataArray):
         if i < (len(dataArray)-1):
             file.write(f'     {element:{width}},\n')

@@ -17,16 +17,28 @@ from numpy import pi, sqrt, logspace
 f_final = 50     #Hz
 omega_final = 2*pi*f_final
 
-K_T = 7.5e-3    #torque constant, N*m/A
-J = 1.66e-5     #moment of inertia
-K_D = 1.33e-8   #damping constant, N*m*s^2 (assuming damping torque = K_D*omega^2)
+K_T = 5.55e-3    #torque constant, N*m/A
+J = 1.82e-5     #moment of inertia, kg*m^2
+K_D = 1.42e-8   #damping constant, N*m*s^2 (assuming damping torque = K_D*omega^2)
 Gamma = K_D*omega_final #assuming linear damping, Gamma*omega
 
 #from motor PID tuning. In firmware, these constants are defined with respect
 #to motor phase in revs. Transfer function is given in terms of rad
+
+"""
+# original values of phase PID
 k_p = 0.5/(2*pi)      
 k_i = 0.5/(2*pi)      
-k_d = 0.75/(2*pi)
+k_d = 5/(2*pi)
+"""
+
+#To include the effect of speed PID:
+# k_p = k_p,phase + k_i,speed
+# k_i = k_i,phase (no change)
+# k_d = k_d,phase + k_p,speed
+k_p = (0.8926 + 0.0184)/(2*pi)      
+k_i = 3.484/(2*pi)      
+k_d = (0.0369 + .0231)/(2*pi)
 
 """
 motor transfer function
@@ -49,7 +61,7 @@ motor_tf = signal.TransferFunction(tf_num, tf_den)
 f = logspace(-2,3)
 omega = 2*pi*f
 
-omega, mag, phase = signal.bode(motor_tf,omega)
+omega, mag, phase = signal.bode(motor_tf, omega)
 
 plt.figure(1)
 plt.semilogx(f, mag);   #Bode magnitude plot
@@ -65,12 +77,13 @@ plt.ylabel('Phase Response (deg)')
 plt.xlabel('Freq (Hz)')
 
 
-t1,y1 = signal.step(motor_tf) #t1 in seconds, y1 is normalized response
+t = np.linspace(0, 100, 20001)
+t1,y1 = signal.step(motor_tf, T=t) #t1 in seconds, y1 is normalized response
 
 plt.figure(3)
 plt.plot(t1,y1)
 plt.xlabel('time (s)')
-plt.ylabel('motor step response')
+plt.ylabel('step response')
 
 print("poles at: "+str(motor_tf.poles)+"rad/s")
 print("zeros at: "+str(motor_tf.zeros)+"rad/s")

@@ -13,7 +13,6 @@ This program imports four columns of data:
 
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy import sqrt, pi, exp, linspace, random
 import os
 
 # custom modules
@@ -21,21 +20,27 @@ import fileWriter
 
 plt.close('all')
 
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
-filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt'
+file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
+
+# 100 count encoder
+#filename = "edgesAndCounts_80Hz_10100Blade_UVWconnected.txt"
+#filename = "edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt"
+#filename = "edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt"
 
 # 400 count encoder
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt'
-#filename = r'D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt'
+#filename = "edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt"
+#filename = "edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt"
+filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt"
 
-data = np.loadtxt(filename, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
+full_path = os.path.join(file_dir, filename)
+
+data = np.loadtxt(full_path, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
 
 encCount = data[:,0]
 encEdge = data[:,1]
 
 N_samples = len(encCount)
-N_enc = 100 #number of ticks on shaft encoder
+N_enc = 400 #number of ticks on shaft encoder
 f_FTM = 60e6 #Hz
 FTM_MOD = 4096 #FTM_MOD for the FTM peripheral used to collect these data
 
@@ -194,7 +199,7 @@ ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
 tickSpacingRescale = 1/(N_enc*lsAvgTickSpacing)
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale100')
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale100')
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):

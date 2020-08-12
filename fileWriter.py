@@ -8,7 +8,8 @@ import datetime
 
 def saveDataWithHeader(scriptName, dataFileName, dataArray, cDataType, width, destFilename):
     
-    fileDir = 'D:\\Documents\\MCUXpressoIDE_10.1.0_589\\workspace\\SR544\\utilities\\'
+    #fileDir = 'D:\\Documents\\MCUXpressoIDE_10.1.0_589\\workspace\\SR544\\utilities\\'
+    fileDir = 'C:\\Users\\aberger\\Documents\\Projects\\SR542\\Firmware\\SR544\\utilities\\'
     filepath = fileDir + destFilename + '.c'
 
     file = open(filepath, 'w')

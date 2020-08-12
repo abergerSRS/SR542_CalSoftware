@@ -26,11 +26,12 @@ file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\
 #filename = "edgesAndCounts_80Hz_10100Blade_UVWconnected.txt"
 #filename = "edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt"
 #filename = "edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt"
+#filename = "edgesAndCounts_120Hz_10-100blade_100CountShaftCal_CW.txt"
 
 # 400 count encoder
-#filename = "edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt"
+#filename = "edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt" #CCW rotation
 #filename = "edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt"
-filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt"
+filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
 
 full_path = os.path.join(file_dir, filename)
 
@@ -57,11 +58,13 @@ class RotaryEncoder():
         self.avgTickSpacing = np.zeros(len(N_ticks))
         self.tickCorrection = np.zeros(len(N_ticks))
 
+# Look for changes in the input captured FTM value and use that to generate deltas.
 # Given: integer counts, FTM input captured CnV values @ edges, time array
 # Return: 
-#1. integer count at edge corresponding to CnV_i, 
-#2. delta = CnV_i - CnV_(i-1)
-#3. t1 = time at edge corresponding to CnV_i
+#1. rawCount[i] = shaft encoder count at captured edge: counts[i]
+#2. deltaCount[i] = change in shaft encoder count: counts[i] - counts[i-1]
+#3. deltaFTM[i] = change in input capture value: CnV_i - CnV_(i-1)
+#4. t1[i] = time at edge corresponding to CnV_i
 def measureCountDeltas(counts, edges, time, maxCount):
     rawCount = np.zeros(0)
     deltaCount = np.zeros(0)
@@ -186,7 +189,7 @@ def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawC
     return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
 
 (lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
-(lsAvgTickSpacing_start200, lsStdTickSpacing_start200) = LeastSquaresTickSpacing(N_enc, 10, 3, 200, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing, yerr=stdTickSpacing, marker='.', capsize=4.0, label='no circular closure', zorder=0)
@@ -246,13 +249,13 @@ avgTickCorrection -= offsetTickCorrection
 
 # Tick Corrections *with* circular closure
 lsTickCorrection = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing)
-lsTickCorrection_start200 = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing_start200)
+lsTickCorrection_startMid = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing_startMid)
 lsOffset = np.mean(lsTickCorrection)
 lsTickCorrection -= lsOffset
 
 fig3, ax3 = plt.subplots()
 ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
-ax3.plot(encoderCount/N_enc*360, lsTickCorrection_start200 - np.mean(lsTickCorrection_start200), label = 'circular closure, start = 200')
+ax3.plot(encoderCount/N_enc*360, lsTickCorrection_startMid - np.mean(lsTickCorrection_startMid), label = f'circular closure, start = {int(N_enc/2)}')
 #ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0, label='no circular closure')
 ax3.set_xlabel('rotor angle (deg)')
 ax3.set_ylabel('tick error (mech. revs)')

@@ -14,6 +14,7 @@ This program imports four columns of data:
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from scipy.optimize import minimize
 
 # custom modules
 import fileWriter
@@ -31,17 +32,20 @@ file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\
 # 400 count encoder
 #filename = "edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt" #CCW rotation
 #filename = "edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt"
-filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
+#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
+#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_trial3.txt" #CW rotation
+filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_ZCAL=6.txt" #CW rotation
 
 full_path = os.path.join(file_dir, filename)
 
-data = np.loadtxt(full_path, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
+data = np.loadtxt(full_path, delimiter=',', usecols=[0,1,2,3], skiprows=0)
 
 encCount = data[:,0]
 encEdge = data[:,1]
 
 N_samples = len(encCount)
-N_enc = 400 #number of ticks on shaft encoder
+#N_enc = 100 #number of ticks on shaft encoder
+N_enc = int(max(encCount)) + 1
 f_FTM = 60e6 #Hz
 FTM_MOD = 4096 #FTM_MOD for the FTM peripheral used to collect these data
 
@@ -158,7 +162,7 @@ def CalculateAvgTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs
     
     return (avgTickSpacing, stdTickSpacing)
 
-(avgTickSpacing, stdTickSpacing) = CalculateAvgTickSpacing(N_enc, 10, 3, encTickSpacing, encCountAtDelta)
+(avgTickSpacing_NC, stdTickSpacing_NC) = CalculateAvgTickSpacing(N_enc, 10, 3, encTickSpacing, encCountAtDelta)
 
 # Use Least Squares with Circular Closure to determine tick spacing
 # 1. Want to solve A*x = b, subject to least squares such that we minimize ||b - A*x||
@@ -188,11 +192,50 @@ def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawC
     
     return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
 
-(lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
-(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+# The LeastSquaresTickSpacing treats circular closure only as another data point to be fitted,
+# rather than as a firm constraint.    
+# Instead, use scipy.optimize.minimize to enforce the constraint that the sum of tick spacings = 1 revolution
+def targetFun(x, A, b):
+    return np.sum((b - A*x)**2)
+
+def constraint(x):
+    return np.sum(x) - 1
+
+cons = [{'type': 'eq', 'fun': constraint}]
+
+def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCountAtDelta, speed, deltaT):
+    """ 
+    Also a least-squares minimization, but utilizes constraint to enforce
+    circular closure, instead of using circular closure as a data point
+    to-be-fitted
+    """
+    measTickSpacing = np.zeros((N_ticks, N_revsToAvg))
+    indexOfZerothTick = np.where(rawCountAtDelta == startCount)
+    i = 0
+    for index in indexOfZerothTick[0]:
+        if i >= N_revsToAvg:
+            break
+        if index > N_revsToWait*N_ticks:
+            A = np.identity(N_ticks)*1/speed[index:index+N_ticks]
+            b = deltaT[index:index+N_ticks]
+            sol = minimize(targetFun, x0 = avgTickSpacing_NC, args = (A, b), method='SLSQP', tol=1e-12, constraints=cons)
+            measTickSpacing[:,i] = sol['x']
+            i += 1
+            
+    avgTickSpacing = np.mean(measTickSpacing, axis=1)
+    stdTickSpacing = np.std(measTickSpacing, axis=1)
+    
+    #return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
+    return (avgTickSpacing, stdTickSpacing)
+
+# Choose between LeastSquaresTickSpacing and ConstrainedTickSpacing
+#(lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+#(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing, lsStdTickSpacing) = ConstrainedTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = ConstrainedTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 
 fig2, ax2 = plt.subplots()
-ax2.errorbar(encoderCount, avgTickSpacing, yerr=stdTickSpacing, marker='.', capsize=4.0, label='no circular closure', zorder=0)
+ax2.errorbar(encoderCount, avgTickSpacing_NC, yerr=stdTickSpacing_NC, marker='.', capsize=4.0, label='no circular closure', zorder=0)
 ax2.errorbar(encoderCount, lsAvgTickSpacing, yerr=lsStdTickSpacing, marker='.', capsize=4.0, label='circular closure, start = 0', zorder=0)
 ax2.plot(encoderCount, 1/N_enc*np.ones(N_enc), '--', label='ideal', zorder=1)
 ax2.set_xlabel('encoder count')
@@ -201,8 +244,11 @@ ax2.legend()
 ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
-tickSpacingRescale = 1/(N_enc*lsAvgTickSpacing)
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', 'tickRescale100')
+tickSpacingRescale = 1/N_enc*1/lsAvgTickSpacing
+tickSpacingRescale *= N_enc/np.sum(tickSpacingRescale)
+print(np.sum(tickSpacingRescale))
+saveAs = f'tickRescale{N_enc}'
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', saveAs)
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
@@ -282,4 +328,4 @@ ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
 angleCorr_int32 = lsTickCorrection*2**32
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')

@@ -5,7 +5,7 @@ Created on Wed Feb  5 14:20:07 2020
 @author: aberger
 
 This program imports four columns of data:
-    1. enc raw count (0-99)
+    1. enc raw count (0-399)
     2. input capture of shaft edges on "free running" 60 MHz FTM counter
     3. running total of number of encoder edges captured
     4. delta FTM count between most recent two edges, rescaled by tick spacing
@@ -31,11 +31,12 @@ plt.close('all')
 file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 #filename = 'edgesAndCounts_80Hz_10100Blade_UVWconnected.txt'
 #filename = 'edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt'
-filename = 'edgesAndCounts_80Hz_10100Blade_ticksRescaled.txt'
+#filename = 'edgesAndCounts_80Hz_10100Blade_ticksRescaled.txt'
+filename = 'edgesAndCounts_35Hz_10-100blade_CW_400CountCalVerify.txt'
 
 full_path = os.path.join(file_dir, filename)
 
-data = np.loadtxt(full_path, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
+data = np.loadtxt(full_path, delimiter=',', usecols=[0,1,2,3], skiprows=0)
 
 encCount = data[:,0]
 shaftInputCap = data[:,1] #last input captured edge on a free-running FTM counter
@@ -43,8 +44,7 @@ numEncEdges = data[:,2] #number of captured encoder edges since last speed measu
 totalCounts = data[:,3] #number of FTM counts, rescaled by tickRescale, since last speed measurement
 
 N_samples = len(encCount)
-N_enc = 100 #number of ticks on shaft encoder
-N_chop = 100 #number of apertures in chopper blade
+N_enc = 400 #number of ticks on shaft encoder
 f_FTM = 60e6 #Hz
 FTM_MOD = 4096 #FTM_MOD for the FTM peripheral used to collect these data
 

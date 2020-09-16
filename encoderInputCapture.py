@@ -244,11 +244,8 @@ ax2.legend()
 ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
-tickSpacingRescale = 1/N_enc*1/lsAvgTickSpacing
-tickSpacingRescale *= N_enc/np.sum(tickSpacingRescale)
+tickSpacingRescale = N_enc*lsAvgTickSpacing
 print(np.sum(tickSpacingRescale))
-saveAs = f'tickRescale{N_enc}'
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, tickSpacingRescale, 'float', '1.7f', saveAs)
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
@@ -278,7 +275,7 @@ def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_
     return (avgTickCorrection, stdTickCorrection)
 
 def ConvertLSSpacingToCorrections(N_ticks, lsTickSpacing_revs):
-    distFromZerothTick = np.cumsum(lsTickSpacing_revs) - 1/N_ticks
+    distFromZerothTick = np.cumsum(lsTickSpacing_revs) - lsTickSpacing_revs[0]
     
     encoderCount = np.linspace(0, N_ticks - 1, N_ticks)
     tickCorrection_revs = encoderCount/N_ticks - distFromZerothTick
@@ -296,8 +293,11 @@ avgTickCorrection -= offsetTickCorrection
 # Tick Corrections *with* circular closure
 lsTickCorrection = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing)
 lsTickCorrection_startMid = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacing_startMid)
-lsOffset = np.mean(lsTickCorrection)
-lsTickCorrection -= lsOffset
+#lsOffset = np.mean(lsTickCorrection)
+#lsTickCorrection -= lsOffset
+
+calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]) # [revs]
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', '1.7f', f'tickRescale{N_enc}')
 
 fig3, ax3 = plt.subplots()
 ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
@@ -314,7 +314,7 @@ Test the correction -----------------------------------------------------------
 """
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
-corrSpeed = encSpeed/tickSpacingRescale[encCountAtDelta.astype(int)]
+corrSpeed = encSpeed*tickSpacingRescale[encCountAtDelta.astype(int)]
 ax1.plot(encTimeAtDelta[1:], corrSpeed[1:])
 ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize), 'corrected encoder speed'))
 
@@ -328,4 +328,4 @@ ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
 angleCorr_int32 = lsTickCorrection*2**32
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')

@@ -35,7 +35,8 @@ file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_trial3.txt" #CW rotation
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_ZCAL=6.txt" #CW rotation
-filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling.txt" #CW rotation, new tick scaling
+#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling.txt" #CW rotation, new tick scaling
+filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
 
 full_path = os.path.join(file_dir, filename)
 
@@ -129,8 +130,6 @@ encFtmDeltaT_sec = encFtmDelta/f_FTM
 encSpeed = encCountDelta/(N_enc*encFtmDeltaT_sec)
 calSpeed = revsDelta/encFtmDeltaT_sec
         
-
-"""
 # Calculate the moving average to smooth over the fine-scale variation due to 
 # encoder errors (window size >= N_enc)
 windowSize = int(5*N_enc/2)
@@ -138,13 +137,13 @@ avgEncSpeed = movingAverage(encSpeed, windowSize)
 
 # Plot Speed vs Time
 fig1, ax1 = plt.subplots()
-ax1.plot(encTimeAtDelta[1:], encSpeed[1:])
-ax1.plot(encTimeAtDelta[1:], avgEncSpeed[1:])
+ax1.plot(encTimeAtDelta[1:], encSpeed[1:], label='from raw encoder count')
+ax1.plot(encTimeAtDelta[1:], avgEncSpeed[1:], label=f'windowed average, N={windowSize}')
+ax1.plot(encTimeAtDelta[1:], calSpeed[1:], label="from cal'd phase LUT")
 ax1.set_ylim(min(encSpeed[1:]), max(encSpeed[1:]))
 ax1.set_xlabel('time (s)')
 ax1.set_ylabel('speed (rev/s)')
 ax1.set_title('Free Spindle Decay: speed vs. time')
-ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize)))
 
 # The main step of the calibration is to convert the delta t measurements
 # to tick spacing (in revs). This requires a "perfect" estimator of the instanteous
@@ -212,11 +211,11 @@ def constraint(x):
 cons = [{'type': 'eq', 'fun': constraint}]
 
 def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCountAtDelta, speed, deltaT):
-""" 
-    #Also a least-squares minimization, but utilizes constraint to enforce
-    #circular closure, instead of using circular closure as a data point
-    #to-be-fitted
-"""
+    """ 
+    Also a least-squares minimization, but utilizes constraint to enforce
+    circular closure, instead of using circular closure as a data point
+    to-be-fitted
+    """
     measTickSpacing = np.zeros((N_ticks, N_revsToAvg))
     indexOfZerothTick = np.where(rawCountAtDelta == startCount)
     i = 0
@@ -241,6 +240,7 @@ def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCo
 #(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 (lsAvgTickSpacing, lsStdTickSpacing) = ConstrainedTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 (lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = ConstrainedTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+print(np.sum(lsAvgTickSpacing))
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing_NC, yerr=stdTickSpacing_NC, marker='.', capsize=4.0, label='no circular closure', zorder=0)
@@ -252,7 +252,7 @@ ax2.legend()
 ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
 
-tickSpacingRescale = N_enc*lsAvgTickSpacing
+tickSpacingRescale = np.float32(N_enc*lsAvgTickSpacing)
 print(np.sum(tickSpacingRescale))
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
@@ -304,8 +304,8 @@ lsTickCorrection_startMid = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacin
 #lsOffset = np.mean(lsTickCorrection)
 #lsTickCorrection -= lsOffset
 
-calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]) # [revs]
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', '1.7f', f'tickRescale{N_enc}')
+calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]).astype('float32')
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', 'e', f'tickRescale{N_enc}')
 
 fig3, ax3 = plt.subplots()
 ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
@@ -316,18 +316,21 @@ ax3.set_ylabel('tick error (mech. revs)')
 ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
 ax3.legend()
 fig3.tight_layout()
-"""
 
-"""
-Test the correction -----------------------------------------------------------
-"""
 
-"""
+#------------------------------------------------------------------------------
+#Test the correction ----------------------------------------------------------
+#------------------------------------------------------------------------------
+
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
 corrSpeed = encSpeed*tickSpacingRescale[encCountAtDelta.astype(int)]
-ax1.plot(encTimeAtDelta[1:], corrSpeed[1:])
-ax1.legend(('shaft encoder', 'windowed average, N='+str(windowSize), 'corrected encoder speed'))
+
+# or try applying the LUT directly instead of by applying a scale factor:    
+calibratedDeltaPhase = (calibratedTickPositions[encCountAtDelta.astype(int)] - calibratedTickPositions[(encCountAtDelta.astype(int)-1)%400])%1
+corrSpeed = calibratedDeltaPhase/encFtmDeltaT_sec
+ax1.plot(encTimeAtDelta[1:], corrSpeed[1:], label='corrected encoder speed')
+ax1.legend()
 
 fig4, ax4 = plt.subplots()
 ax4.plot(encTimeAtDelta[1:], avgEncSpeed[1:] - encSpeed[1:])
@@ -340,4 +343,3 @@ fig4.tight_layout()
 
 angleCorr_int32 = lsTickCorrection*2**32
 #fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
-"""

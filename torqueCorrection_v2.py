@@ -216,17 +216,29 @@ ax3.set_title('Shaft accel vs rotor angle')
 
 
 # Downsample the acceleration data to create an n_sample look-up-table
-n_sample = 100
+n_sample = 400
 [tickCount_ang, alpha_ang_avg, alpha_ang_std] = resample(rawPhase, d2Angle_dt2, n_sample)
 [tickCount_spd, alpha_spd_avg, alpha_spd_std] = resample(rawPhase, inputCapAccel, n_sample)
 
 # calculate smoothed data
 alpha_smth = smooth(alpha_ang_avg, window_len=11, window='hanning')
 
+# use spline fit to smooth data
+from scipy.interpolate import splev, splrep
+
+nz = np.nonzero(alpha_spd_avg)
+spl = splrep(tickCount_spd[nz], alpha_spd_avg[nz], s=30)
+#smooth factor of 30 gave empirically acceptable results
+#only use nonzero values of alpha_spd_avg to evaluate spline fit
+angle = np.linspace(0, 2*np.pi, 400)
+alpha_smth = splev(angle, spl)
+
+
 fig4, ax4 = plt.subplots()
-ax4.errorbar(tickCount_ang, alpha_ang_avg, yerr=alpha_ang_std, marker='.', capsize=3, linestyle='none', label='from motor.phase')
-#ax4.errorbar(tickCount_spd, alpha_spd_avg, yerr=alpha_spd_std, marker='.', capsize=3, linestyle='none', label=r'from $\Delta_{FTM}$')
-ax4.plot(tickCount_ang, alpha_smth, label='smoothed, from motor.phase', color='#d62728')
+#ax4.errorbar(tickCount_ang, alpha_ang_avg, yerr=alpha_ang_std, marker='.', capsize=3, linestyle='none', label='from motor.phase')
+ax4.errorbar(tickCount_spd[nz], alpha_spd_avg[nz], yerr=alpha_spd_std[nz], marker='.', capsize=3, linestyle='none', label=r'from $\Delta_{FTM}$', zorder=0)
+#ax4.plot(tickCount_ang, alpha_smth, label='smoothed, from motor.phase', color='#d62728')
+ax4.plot(angle, splev(angle, spl), label='spline fit')
 ax4.set_xlabel('rotor angle (rad)')
 ax4.set_ylabel('accel (rad/s^2)')
 ax4.legend()
@@ -242,4 +254,4 @@ current_corr = current_corr/1.65 #as a float
 #convert current (as a float) to a frac16_t
 current_Q_F16 = 0x8000*current_corr
 
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_Q_F16.astype(int), 'frac16_t', 0, 'currentQcomp')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_Q_F16.astype(int), 'frac16_t', 0, 'currentQcomp')

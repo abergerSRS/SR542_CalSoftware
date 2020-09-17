@@ -297,7 +297,7 @@ lsTickCorrection_startMid = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacin
 #lsTickCorrection -= lsOffset
 
 calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]) # [revs]
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', '1.7f', f'tickRescale{N_enc}')
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', '1.7f', f'tickRescale{N_enc}')
 
 fig3, ax3 = plt.subplots()
 ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')

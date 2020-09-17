@@ -223,7 +223,9 @@ n_sample = 400
 # calculate smoothed data
 alpha_smth = smooth(alpha_ang_avg, window_len=11, window='hanning')
 
-# use spline fit to smooth data
+# TODO: is it better to use acceleration calculated from angle or speed?
+
+# Use spline fit to smooth data
 from scipy.interpolate import splev, splrep
 
 nz = np.nonzero(alpha_spd_avg)

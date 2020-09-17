@@ -34,14 +34,16 @@ file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\
 #filename = "edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt"
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_trial3.txt" #CW rotation
-filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_ZCAL=6.txt" #CW rotation
+#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_ZCAL=6.txt" #CW rotation
+filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling.txt" #CW rotation, new tick scaling
 
 full_path = os.path.join(file_dir, filename)
 
-data = np.loadtxt(full_path, delimiter=',', usecols=[0,1,2,3], skiprows=0)
+data = np.loadtxt(full_path, delimiter=',', usecols=[0,1,2], skiprows=0)
 
 encCount = data[:,0]
-encEdge = data[:,1]
+ftmCount = data[:,1]
+phaseInRevs = data[:,2]
 
 N_samples = len(encCount)
 #N_enc = 100 #number of ticks on shaft encoder
@@ -69,19 +71,22 @@ class RotaryEncoder():
 #2. deltaCount[i] = change in shaft encoder count: counts[i] - counts[i-1]
 #3. deltaFTM[i] = change in input capture value: CnV_i - CnV_(i-1)
 #4. t1[i] = time at edge corresponding to CnV_i
-def measureCountDeltas(counts, edges, time, maxCount):
+def measureCountDeltas(encCount, ftmCount, phase, time, maxCount):
     rawCount = np.zeros(0)
-    deltaCount = np.zeros(0)
-    deltaFTM = np.zeros(0)
+    dCount = np.zeros(0)
+    dFTM = np.zeros(0)
+    dPhase = np.zeros(0)
     t1 = np.zeros(0)
-    for i, edge in enumerate(edges[1:], start=1):
-        if edge != edges[i-1]:
-            rawCount = np.append(rawCount, counts[i])
-            deltaCount = np.append(deltaCount, (counts[i] - counts[i-1])%maxCount)
+    for i, cnt in enumerate(encCount[1:], start=1):
+        if cnt != encCount[i-1]:
+            rawCount = np.append(rawCount, encCount[i])
+            dCount = np.append(dCount, (encCount[i] - encCount[i-1])%maxCount)
+            dFTM = np.append(dFTM, ftmCount[i]- ftmCount[i-1])
+            dPhase = np.append(dPhase, (phase[i] - phase[i-1])%1)
             t1 = np.append(t1, time[i])
-            deltaFTM = np.append(deltaFTM, edge - edges[i-1])
             
-    return rawCount, deltaCount, deltaFTM, t1
+            
+    return rawCount, dCount, dFTM, dPhase, t1
 
 # Given: a 1-D array of data
 # Returns: a sliding window average where the window for the i-th average
@@ -115,14 +120,17 @@ def findWrapArounds(array):
     return wrapIndex
 
 # First, calculate the delta FTM counts
-encCountAtDelta, encCountDelta, encFtmDelta, encTimeAtDelta = measureCountDeltas(encCount, encEdge, t, N_enc)
+encCountAtDelta, encCountDelta, encFtmDelta, revsDelta, encTimeAtDelta = measureCountDeltas(encCount, ftmCount, phaseInRevs, t, N_enc)
 
 # This can be easily converted to delta t in seconds
 encFtmDeltaT_sec = encFtmDelta/f_FTM
 
 # Which can be converted to estimated speed as a function of time:
 encSpeed = encCountDelta/(N_enc*encFtmDeltaT_sec)
+calSpeed = revsDelta/encFtmDeltaT_sec
         
+
+"""
 # Calculate the moving average to smooth over the fine-scale variation due to 
 # encoder errors (window size >= N_enc)
 windowSize = int(5*N_enc/2)
@@ -204,11 +212,11 @@ def constraint(x):
 cons = [{'type': 'eq', 'fun': constraint}]
 
 def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCountAtDelta, speed, deltaT):
-    """ 
-    Also a least-squares minimization, but utilizes constraint to enforce
-    circular closure, instead of using circular closure as a data point
-    to-be-fitted
-    """
+""" 
+    #Also a least-squares minimization, but utilizes constraint to enforce
+    #circular closure, instead of using circular closure as a data point
+    #to-be-fitted
+"""
     measTickSpacing = np.zeros((N_ticks, N_revsToAvg))
     indexOfZerothTick = np.where(rawCountAtDelta == startCount)
     i = 0
@@ -308,9 +316,12 @@ ax3.set_ylabel('tick error (mech. revs)')
 ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
 ax3.legend()
 fig3.tight_layout()
+"""
 
 """
 Test the correction -----------------------------------------------------------
+"""
+
 """
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
@@ -329,3 +340,4 @@ fig4.tight_layout()
 
 angleCorr_int32 = lsTickCorrection*2**32
 #fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+"""

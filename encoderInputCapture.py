@@ -4,11 +4,11 @@ Created on Wed Feb  5 14:20:07 2020
 
 @author: aberger
 
-This program imports four columns of data:
-    1. enc raw count (0-99)
+This program imports three columns of data:
+    1. enc raw count (0-399)
     2. input capture of shaft edges on "free running" 60 MHz FTM counter
-    3. chop wheel raw count (0-99 for 100-slot outer track)
-    4. input capture of chop edges on "free running" 60 MHz FTM counter
+    3. rotor phase as a floating point value [0,1). If uncalibrated, these
+    are just 1/N_enc * i
 """
 
 import numpy as np
@@ -23,19 +23,6 @@ plt.close('all')
 
 file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
-# 100 count encoder
-#filename = "edgesAndCounts_80Hz_10100Blade_UVWconnected.txt"
-#filename = "edgesAndCounts_80Hz_10100Blade_UVWdisconnected.txt"
-#filename = "edgesAndCounts_80Hz_10100Blade_innerTrackCal.txt"
-#filename = "edgesAndCounts_120Hz_10-100blade_100CountShaftCal_CW.txt"
-
-# 400 count encoder
-#filename = "edgesAndCounts_35Hz_10100Blade_400CountEnc_innerTrackCal.txt" #CCW rotation
-#filename = "edgesAndCounts_35Hz_HeavyBlades_400CountEnc_innerTrackCal.txt"
-#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW.txt" #CW rotation
-#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_trial3.txt" #CW rotation
-#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_ZCAL=6.txt" #CW rotation
-#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling.txt" #CW rotation, new tick scaling
 filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
 
 full_path = os.path.join(file_dir, filename)
@@ -47,7 +34,6 @@ ftmCount = data[:,1]
 phaseInRevs = data[:,2]
 
 N_samples = len(encCount)
-#N_enc = 100 #number of ticks on shaft encoder
 N_enc = int(max(encCount)) + 1
 f_FTM = 60e6 #Hz
 FTM_MOD = 4096 #FTM_MOD for the FTM peripheral used to collect these data
@@ -72,7 +58,7 @@ class RotaryEncoder():
 #2. deltaCount[i] = change in shaft encoder count: counts[i] - counts[i-1]
 #3. deltaFTM[i] = change in input capture value: CnV_i - CnV_(i-1)
 #4. t1[i] = time at edge corresponding to CnV_i
-def measureCountDeltas(encCount, ftmCount, phase, time, maxCount):
+def extractDeltas(encCount, ftmCount, phase, time, maxCount):
     rawCount = np.zeros(0)
     dCount = np.zeros(0)
     dFTM = np.zeros(0)
@@ -121,7 +107,7 @@ def findWrapArounds(array):
     return wrapIndex
 
 # First, calculate the delta FTM counts
-encCountAtDelta, encCountDelta, encFtmDelta, revsDelta, encTimeAtDelta = measureCountDeltas(encCount, ftmCount, phaseInRevs, t, N_enc)
+encCountAtDelta, encCountDelta, encFtmDelta, revsDelta, encTimeAtDelta = extractDeltas(encCount, ftmCount, phaseInRevs, t, N_enc)
 
 # This can be easily converted to delta t in seconds
 encFtmDeltaT_sec = encFtmDelta/f_FTM
@@ -147,7 +133,7 @@ ax1.set_title('Free Spindle Decay: speed vs. time')
 
 # The main step of the calibration is to convert the delta t measurements
 # to tick spacing (in revs). This requires a "perfect" estimator of the instanteous
-# shaft speed 
+# shaft speed (for which I use the moving average avgEncSpeed)
 
 # tick spacing calculated *without* circular closure constraint
 encTickSpacing = avgEncSpeed*encFtmDeltaT_sec
@@ -232,7 +218,6 @@ def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCo
     avgTickSpacing = np.mean(measTickSpacing, axis=1)
     stdTickSpacing = np.std(measTickSpacing, axis=1)
     
-    #return (np.roll(avgTickSpacing, startCount), stdTickSpacing)
     return (avgTickSpacing, stdTickSpacing)
 
 # Choose between LeastSquaresTickSpacing and ConstrainedTickSpacing
@@ -240,7 +225,8 @@ def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCo
 #(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 (lsAvgTickSpacing, lsStdTickSpacing) = ConstrainedTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 (lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = ConstrainedTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
-print(np.sum(lsAvgTickSpacing))
+# make sure that circular closure was properly enforced
+print(f'Sum of the extracted tick spacings over 1 rev is: {np.sum(lsAvgTickSpacing)} revs')
 
 fig2, ax2 = plt.subplots()
 ax2.errorbar(encoderCount, avgTickSpacing_NC, yerr=stdTickSpacing_NC, marker='.', capsize=4.0, label='no circular closure', zorder=0)
@@ -251,9 +237,6 @@ ax2.set_ylabel(r'$\Delta \theta$ (revs)')
 ax2.legend()
 ax2.set_title('Tick Spacing, '+r'$\Delta \theta_i = \bar{f}_i*\Delta t_i$')
 fig2.tight_layout()
-
-tickSpacingRescale = np.float32(N_enc*lsAvgTickSpacing)
-print(np.sum(tickSpacingRescale))
 
 # For N_revsToAvg worth of data, calculate the cumulative distance from tick 0 to tick k
 def ConvertSpacingToCorrections(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs, rawCountAtDelta):
@@ -308,38 +291,48 @@ calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]).as
 #fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', 'e', f'tickRescale{N_enc}')
 
 fig3, ax3 = plt.subplots()
-ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
-ax3.plot(encoderCount/N_enc*360, lsTickCorrection_startMid - np.mean(lsTickCorrection_startMid), label = f'circular closure, start = {int(N_enc/2)}')
+#ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
+#ax3.plot(encoderCount/N_enc*360, lsTickCorrection_startMid - np.mean(lsTickCorrection_startMid), label = f'circular closure, start = {int(N_enc/2)}')
 #ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0, label='no circular closure')
+ax3.plot(encoderCount, encoderCount/N_enc - calibratedTickPositions, marker='.')
 ax3.set_xlabel('rotor angle (deg)')
 ax3.set_ylabel('tick error (mech. revs)')
 ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
-ax3.legend()
 fig3.tight_layout()
 
 
 #------------------------------------------------------------------------------
-#Test the correction ----------------------------------------------------------
+# Test the correction ---------------------------------------------------------
 #------------------------------------------------------------------------------
 
 # Use the average tick spacing to re-scale the speed measurements, 
 # where the scaling factor is measTickSpacing/perfectTickSpacing
+tickSpacingRescale = np.float32(N_enc*lsAvgTickSpacing)
 corrSpeed = encSpeed*tickSpacingRescale[encCountAtDelta.astype(int)]
 
-# or try applying the LUT directly instead of by applying a scale factor:    
+# Or applying the LUT directly instead of by applying a scale factor:    
 calibratedDeltaPhase = (calibratedTickPositions[encCountAtDelta.astype(int)] - calibratedTickPositions[(encCountAtDelta.astype(int)-1)%400])%1
 corrSpeed = calibratedDeltaPhase/encFtmDeltaT_sec
 ax1.plot(encTimeAtDelta[1:], corrSpeed[1:], label='corrected encoder speed')
 ax1.legend()
 
 fig4, ax4 = plt.subplots()
-ax4.plot(encTimeAtDelta[1:], avgEncSpeed[1:] - encSpeed[1:])
-ax4.plot(encTimeAtDelta[1:], avgEncSpeed[1:] - corrSpeed[1:])
-ax4.legend(('original','corrected'))
+numPtsToIgnore = int(windowSize/2)
+uncaldSpeedError = avgEncSpeed[numPtsToIgnore:-numPtsToIgnore] - encSpeed[numPtsToIgnore:-numPtsToIgnore]
+caldSpeedError = avgEncSpeed[numPtsToIgnore:-numPtsToIgnore] - calSpeed[numPtsToIgnore:-numPtsToIgnore]
+newCaldSpeedError = avgEncSpeed[numPtsToIgnore:-numPtsToIgnore] - corrSpeed[numPtsToIgnore:-numPtsToIgnore:]
+
+ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], uncaldSpeedError, label='from raw encoder count')
+ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], caldSpeedError, label="from firwmare phase LUT")
+ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], newCaldSpeedError, label="from new cal'd tick positions")
+ax4.legend()
 ax4.set_xlabel('time (s)')
 ax4.set_ylabel('speed error (revs/s)')
 ax4.set_title('Speed error comparison')
 fig4.tight_layout()
 
-angleCorr_int32 = lsTickCorrection*2**32
-#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, angleCorr_int32.astype(int), 'int32_t', 0, 'angleComp')
+def rms(x):  
+    return np.sqrt(np.mean(x**2))
+
+print(f'Improvement in rms speed error = {rms(uncaldSpeedError)/rms(caldSpeedError):.2f}')
+# TODO: what is acceptable to "pass" the cal?

@@ -26,15 +26,21 @@ plt.close('all')
 
 file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
-filename = r"torqueCal_constQ_3Hz_10-100blade_CW.txt"
+#filename = r"torqueCal_constQ_3Hz_10-100blade_CW.txt"
 #filename = r"torqueCal_constQ_3Hz_10-100blade_CW_verify.txt"
 #filename = r"torqueCal_constQ_3Hz_noBlade_CW.txt"
+filename = r"torqueCal_constQ_CW_newTickScaling.txt"
 
 full_path = os.path.join(file_dir, filename)
 
-data = np.loadtxt(full_path, delimiter=' ', usecols=[0,1,2,3], skiprows=0)
+data = np.loadtxt(full_path, delimiter=',', usecols=[0,1,2], skiprows=0)
 
-N_enc = 400
+encCount = data[:,0]
+ftmCount = data[:,1]
+phaseInRad = 2*pi*data[:,2] #in rad
+uwPhase = np.unwrap(phaseInRad) #in rad
+
+N_enc = int(max(encCount)) + 1
 f_FTM = 60e6
 FTM_MOD = 4096
 dt = FTM_MOD*128/f_FTM 
@@ -42,15 +48,8 @@ dt = FTM_MOD*128/f_FTM
 #based on an FTM3PERIOD_S = 6.8266667e-5
 #and a samping prescale factor of 128                    
 
-N = len(data[:,0]) 
+N = len(encCount) 
 time = np.linspace(0,(N-1)*dt,N)
-
-rotorAngle_rawCount = data[:,0]
-shaftInputCapture = data[:,1]
-numEdges = data[:,2]
-rawPhase = 2*pi*data[:,3]/(2**32) #in rad
-uwPhase = np.unwrap(rawPhase) #in rad
-
 
 moment = 1.7e-5 #kg*m^2, from impulse measurements
 #UWE 10-100 Blade (Stainless Steel)
@@ -175,38 +174,29 @@ def smooth(x, window_len=11, window='hanning'):
     return y[int(window_len/2):-int(window_len/2)]
 
 
-# Differentiate unwrapped angle twice to calculate acceleration
-dAngle_dt = np.gradient(uwPhase, dt)
-d2Angle_dt2 = np.gradient(dAngle_dt, dt)
-
-# Also calculate speed using num of FTM counts (shaftInputCapture) and 
+# Calculate speed using num of FTM counts (ftmCount) and 
 # number of Captured Edges
-deltaT_sec = shaftInputCapture/(f_FTM*numEdges)
-inputCapSpeed = 1/(N_enc*deltaT_sec)
-inputCapAccel = np.gradient(inputCapSpeed*2*np.pi, dt)
+deltaPhase = np.diff(phaseInRad)%(2*np.pi)
+deltaT_sec = (np.diff(ftmCount)/f_FTM)%(2**32)
+inputCapSpeed = deltaPhase/deltaT_sec
+inputCapAccel = np.gradient(inputCapSpeed, dt)
 
 fig1, ax1 = plt.subplots()
-ax1.plot(time, dAngle_dt)
-ax1.plot(time, inputCapSpeed*2*np.pi)
+ax1.plot(time[1:], inputCapSpeed)
 ax1.set_xlabel('time (s)')
 ax1.set_ylabel('shaft speed (rad/s)')
-ax1.legend((r'$\partial (\mathrm{motor.phase})/\partial t$', r'from $\Delta_{FTM}$'))
 ax1.set_title('Shaft speed vs time')
 
 fig2, ax2 = plt.subplots()
-ax2.plot(time, d2Angle_dt2)
-ax2.plot(time, inputCapAccel)
+ax2.plot(time[1:], inputCapAccel)
 ax2.set_xlabel('time (s)')
 ax2.set_ylabel('accel rad/s^2')
-ax2.legend((r'$\partial^2 (\mathrm{motor.phase})/\partial t^2$', r'from $\Delta_{FTM}$'))
 ax2.set_title('Shaft accel vs time')
 
 fig3, ax3 = plt.subplots()
-ax3.plot(rawPhase, d2Angle_dt2, marker='.', linestyle='none')
-ax3.plot(rawPhase, inputCapAccel, marker='.', linestyle='none')
+ax3.plot(phaseInRad[1:], inputCapAccel, marker='.', linestyle='none')
 ax3.set_xlabel('rotor angle (rad)')
 ax3.set_ylabel('accel (rad/s^2)')
-ax3.legend(('from motor.phase', r'from $\Delta_{FTM}$'))
 ax3.set_title('Shaft accel vs rotor angle')
 
 
@@ -217,19 +207,18 @@ ax3.set_title('Shaft accel vs rotor angle')
 
 # Downsample the acceleration data to create an n_sample look-up-table
 n_sample = 400
-[tickCount_ang, alpha_ang_avg, alpha_ang_std] = resample(rawPhase, d2Angle_dt2, n_sample)
-[tickCount_spd, alpha_spd_avg, alpha_spd_std] = resample(rawPhase, inputCapAccel, n_sample)
+[phase_resampled, alpha_avg, alpha_std] = resample(phaseInRad[1:], inputCapAccel, n_sample)
 
 # calculate smoothed data
-alpha_smth = smooth(alpha_ang_avg, window_len=11, window='hanning')
+alpha_smth = smooth(alpha_avg, window_len=11, window='hanning')
 
 # TODO: is it better to use acceleration calculated from angle or speed?
 
 # Use spline fit to smooth data
 from scipy.interpolate import splev, splrep
 
-nz = np.nonzero(alpha_spd_avg)
-spl = splrep(tickCount_spd[nz], alpha_spd_avg[nz], s=30)
+nz = np.nonzero(alpha_avg)
+spl = splrep(phase_resampled[nz], alpha_avg[nz], s=35)
 #smooth factor of 30 gave empirically acceptable results
 #only use nonzero values of alpha_spd_avg to evaluate spline fit
 angle = np.linspace(0, 2*np.pi, 400)
@@ -238,7 +227,7 @@ alpha_smth = splev(angle, spl)
 
 fig4, ax4 = plt.subplots()
 #ax4.errorbar(tickCount_ang, alpha_ang_avg, yerr=alpha_ang_std, marker='.', capsize=3, linestyle='none', label='from motor.phase')
-ax4.errorbar(tickCount_spd[nz], alpha_spd_avg[nz], yerr=alpha_spd_std[nz], marker='.', capsize=3, linestyle='none', label=r'from $\Delta_{FTM}$', zorder=0)
+ax4.errorbar(phase_resampled[nz], alpha_avg[nz], yerr=alpha_std[nz], marker='.', capsize=3, linestyle='none', label=r'from $\Delta_{FTM}$', zorder=0)
 #ax4.plot(tickCount_ang, alpha_smth, label='smoothed, from motor.phase', color='#d62728')
 ax4.plot(angle, splev(angle, spl), label='spline fit')
 ax4.set_xlabel('rotor angle (rad)')
@@ -251,9 +240,9 @@ torque = moment*alpha_smth
 current_corr = torque/torqueConst #in Amps
 
 #currently, the output current is scaled such that full-scale = 1.65 A
-current_corr = current_corr/1.65 #as a float
+current_corr = np.float32(current_corr/1.65) #as a float
 
 #convert current (as a float) to a frac16_t
-current_Q_F16 = 0x8000*current_corr
+#current_Q_F16 = 0x8000*current_corr
 
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_Q_F16.astype(int), 'frac16_t', 0, 'currentQcomp')
+fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_corr, 'float', 'e', 'currentQcomp')

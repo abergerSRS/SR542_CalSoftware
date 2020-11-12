@@ -24,12 +24,17 @@ import fileWriter
 
 plt.close('all')
 
-file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
+# For SRS laptop
+#file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
 #filename = r"torqueCal_constQ_3Hz_10-100blade_CW.txt"
 #filename = r"torqueCal_constQ_3Hz_10-100blade_CW_verify.txt"
 #filename = r"torqueCal_constQ_3Hz_noBlade_CW.txt"
-filename = r"torqueCal_constQ_CW_newTickScaling.txt"
+#filename = r"torqueCal_constQ_CW_newTickScaling.txt"
+
+# For lock-in lab desktop
+file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
+filename = "torqueCal_2046001_4Hz_3.txt"
 
 full_path = os.path.join(file_dir, filename)
 
@@ -245,4 +250,7 @@ current_corr = np.float32(current_corr/1.65) #as a float
 #convert current (as a float) to a frac16_t
 #current_Q_F16 = 0x8000*current_corr
 
-fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_corr, 'float', 'e', 'currentQcomp')
+# Save data as a .c file for incorporation into firmware:
+#fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, current_corr, 'float', 'e', 'currentQcomp')
+# Save data as a simple csv for uploading via serial communications:
+#np.savetxt(os.path.join(file_dir, 'currCorr_2.csv'), current_corr, newline='\n', fmt='%.6e', delimiter=',')

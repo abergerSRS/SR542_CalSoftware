@@ -21,9 +21,14 @@ import fileWriter
 
 plt.close('all')
 
-file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
+# For SRS laptop
+#file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
-filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
+# For lock-in lab desktop
+file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
+
+#filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
+filename = "encoderCal_20460001_35Hz_postCal.txt"
 
 full_path = os.path.join(file_dir, filename)
 
@@ -288,7 +293,10 @@ lsTickCorrection_startMid = ConvertLSSpacingToCorrections(N_enc, lsAvgTickSpacin
 #lsTickCorrection -= lsOffset
 
 calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]).astype('float32')
+# Save data as a .c file for incorporation into firmware:
 #fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', 'e', f'tickRescale{N_enc}')
+# Save data as a simple csv for uploading via serial communications:
+#np.savetxt(os.path.join(file_dir, 'tickPos.csv'), calibratedTickPositions, newline='\n', fmt='%.6e', delimiter=',')
 
 fig3, ax3 = plt.subplots()
 #ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
@@ -334,5 +342,5 @@ fig4.tight_layout()
 def rms(x):  
     return np.sqrt(np.mean(x**2))
 
-print(f'Improvement in rms speed error = {rms(uncaldSpeedError)/rms(caldSpeedError):.2f}')
+print(f'Improvement in rms speed error = {rms(uncaldSpeedError)/rms(caldSpeedError):.2f}x')
 # TODO: what is acceptable to "pass" the cal?

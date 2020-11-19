@@ -28,7 +28,10 @@ plt.close('all')
 file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
 
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
-filename = "encoderCal_20460001_35Hz_postCal.txt"
+#filename = "encoderCal_20460001_35Hz.txt"
+#filename = "encoderCal_20460001_35Hz_postCal.txt"
+filename = "encoderCal_20460001_120Hz.txt"
+
 
 full_path = os.path.join(file_dir, filename)
 

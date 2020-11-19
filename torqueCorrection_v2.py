@@ -34,7 +34,9 @@ plt.close('all')
 
 # For lock-in lab desktop
 file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
-filename = "torqueCal_2046001_4Hz_3.txt"
+#filename = "torqueCal_2046001_4Hz.txt"
+#filename = "torqueCal_2046001_3Hz_postCal.txt"
+filename = "torqueCal_2046001_4Hz_torqueScale=0.txt"
 
 full_path = os.path.join(file_dir, filename)
 
@@ -51,7 +53,8 @@ FTM_MOD = 4096
 dt = FTM_MOD*128/f_FTM 
 #data is being sampled at ~8.7 ms
 #based on an FTM3PERIOD_S = 6.8266667e-5
-#and a samping prescale factor of 128                    
+#and a samping prescale factor of 128  
+time_s = (ftmCount - ftmCount[0])/f_FTM                  
 
 N = len(encCount) 
 time = np.linspace(0,(N-1)*dt,N)
@@ -181,25 +184,26 @@ def smooth(x, window_len=11, window='hanning'):
 
 # Calculate speed using num of FTM counts (ftmCount) and 
 # number of Captured Edges
-deltaPhase = np.diff(phaseInRad)%(2*np.pi)
-deltaT_sec = (np.diff(ftmCount)/f_FTM)%(2**32)
-inputCapSpeed = deltaPhase/deltaT_sec
-inputCapAccel = np.gradient(inputCapSpeed, dt)
+inputCapSpeed = np.gradient(uwPhase, time_s)
+inputCapAccel = np.gradient(inputCapSpeed, time_s)
+
+
 
 fig1, ax1 = plt.subplots()
-ax1.plot(time[1:], inputCapSpeed)
+ax1.plot(time, inputCapSpeed)
 ax1.set_xlabel('time (s)')
 ax1.set_ylabel('shaft speed (rad/s)')
 ax1.set_title('Shaft speed vs time')
 
 fig2, ax2 = plt.subplots()
-ax2.plot(time[1:], inputCapAccel)
+ax2.plot(time, inputCapAccel)
 ax2.set_xlabel('time (s)')
 ax2.set_ylabel('accel rad/s^2')
 ax2.set_title('Shaft accel vs time')
 
+# throw away first and last data points
 fig3, ax3 = plt.subplots()
-ax3.plot(phaseInRad[1:], inputCapAccel, marker='.', linestyle='none')
+ax3.plot(phaseInRad[2:-2], inputCapAccel[2:-2], marker='.', linestyle='none')
 ax3.set_xlabel('rotor angle (rad)')
 ax3.set_ylabel('accel (rad/s^2)')
 ax3.set_title('Shaft accel vs rotor angle')
@@ -212,12 +216,10 @@ ax3.set_title('Shaft accel vs rotor angle')
 
 # Downsample the acceleration data to create an n_sample look-up-table
 n_sample = 400
-[phase_resampled, alpha_avg, alpha_std] = resample(phaseInRad[1:], inputCapAccel, n_sample)
+[phase_resampled, alpha_avg, alpha_std] = resample(phaseInRad[2:-2], inputCapAccel[2:-2], n_sample)
 
 # calculate smoothed data
 alpha_smth = smooth(alpha_avg, window_len=11, window='hanning')
-
-# TODO: is it better to use acceleration calculated from angle or speed?
 
 # Use spline fit to smooth data
 from scipy.interpolate import splev, splrep
@@ -234,11 +236,14 @@ fig4, ax4 = plt.subplots()
 #ax4.errorbar(tickCount_ang, alpha_ang_avg, yerr=alpha_ang_std, marker='.', capsize=3, linestyle='none', label='from motor.phase')
 ax4.errorbar(phase_resampled[nz], alpha_avg[nz], yerr=alpha_std[nz], marker='.', capsize=3, linestyle='none', label=r'from $\Delta_{FTM}$', zorder=0)
 #ax4.plot(tickCount_ang, alpha_smth, label='smoothed, from motor.phase', color='#d62728')
-ax4.plot(angle, splev(angle, spl), label='spline fit')
+ax4.plot(angle, alpha_smth, label='spline fit')
 ax4.set_xlabel('rotor angle (rad)')
 ax4.set_ylabel('accel (rad/s^2)')
 ax4.legend()
 ax4.set_title(f'Shaft accel vs rotor angle, down-sampled to {n_sample} elements')
+
+def rms(x):  
+    return np.sqrt(np.mean(x**2))
 
 #convert angular acceleration (alpha) to torque, and then current
 torque = moment*alpha_smth

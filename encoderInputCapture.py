@@ -30,8 +30,10 @@ file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR5
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
 #filename = "encoderCal_20460001_35Hz.txt"
 #filename = "encoderCal_20460001_35Hz_postCal.txt"
-filename = "encoderCal_20460001_120Hz.txt"
+filename = "encoderCal_20460001_35Hz_heavyBlades2.txt"
+#filename = "encoderCal_20460001_35Hz_vertMount.txt"
 
+postcal = False
 
 full_path = os.path.join(file_dir, filename)
 
@@ -116,6 +118,7 @@ def findWrapArounds(array):
 
 # First, calculate the delta FTM counts
 encCountAtDelta, encCountDelta, encFtmDelta, revsDelta, encTimeAtDelta = extractDeltas(encCount, ftmCount, phaseInRevs, t, N_enc)
+numRevsCaptured = len(np.where(encCountAtDelta == 0)[0])
 
 # This can be easily converted to delta t in seconds
 encFtmDeltaT_sec = encFtmDelta/f_FTM
@@ -133,7 +136,8 @@ avgEncSpeed = movingAverage(encSpeed, windowSize)
 fig1, ax1 = plt.subplots()
 ax1.plot(encTimeAtDelta[1:], encSpeed[1:], label='from raw encoder count')
 ax1.plot(encTimeAtDelta[1:], avgEncSpeed[1:], label=f'windowed average, N={windowSize}')
-ax1.plot(encTimeAtDelta[1:], calSpeed[1:], label="from cal'd phase LUT")
+if(postcal):
+    ax1.plot(encTimeAtDelta[1:], calSpeed[1:], label="from cal'd phase LUT")
 ax1.set_ylim(min(encSpeed[1:]), max(encSpeed[1:]))
 ax1.set_xlabel('time (s)')
 ax1.set_ylabel('speed (rev/s)')
@@ -163,11 +167,11 @@ def CalculateAvgTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, tickSpacing_revs
     
     return (avgTickSpacing, stdTickSpacing)
 
-(avgTickSpacing_NC, stdTickSpacing_NC) = CalculateAvgTickSpacing(N_enc, 10, 3, encTickSpacing, encCountAtDelta)
+(avgTickSpacing_NC, stdTickSpacing_NC) = CalculateAvgTickSpacing(N_enc, 10, 12, encTickSpacing, encCountAtDelta)
 
 # Use Least Squares with Circular Closure to determine tick spacing
 # 1. Want to solve A*x = b, subject to least squares such that we minimize ||b - A*x||
-# 2. In our case, A = I*(1/omega), with a final row of ones
+# 2. In our case, A = I*(1/omega), with a final row of ones, where omega is the estimate of "true" speed
 # 3. x = encoder tick spacing, which we are solving for
 # 4. b = measured Delta T's, with a final element of one
 # 5. The augmented elements of A and b enforce circular closure such that:
@@ -196,9 +200,11 @@ def LeastSquaresTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawC
 # The LeastSquaresTickSpacing treats circular closure only as another data point to be fitted,
 # rather than as a firm constraint.    
 # Instead, use scipy.optimize.minimize to enforce the constraint that the sum of tick spacings = 1 revolution
+# See above description of the linear algebraic equation we are solving: A*x = b
 def targetFun(x, A, b):
     return np.sum((b - A*x)**2)
 
+# Define a constraint that requires the sum(x) for all x to add up to 1
 def constraint(x):
     return np.sum(x) - 1
 
@@ -231,8 +237,8 @@ def ConstrainedTickSpacing(N_ticks, N_revsToAvg, N_revsToWait, startCount, rawCo
 # Choose between LeastSquaresTickSpacing and ConstrainedTickSpacing
 #(lsAvgTickSpacing, lsStdTickSpacing) = LeastSquaresTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 #(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = LeastSquaresTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
-(lsAvgTickSpacing, lsStdTickSpacing) = ConstrainedTickSpacing(N_enc, 10, 3, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
-(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = ConstrainedTickSpacing(N_enc, 10, 3, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing, lsStdTickSpacing) = ConstrainedTickSpacing(N_enc, 10, 12, 0, encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
+(lsAvgTickSpacing_startMid, lsStdTickSpacing_startMid) = ConstrainedTickSpacing(N_enc, 10, 12, int(N_enc/2), encCountAtDelta, avgEncSpeed, encFtmDeltaT_sec)
 # make sure that circular closure was properly enforced
 print(f'Sum of the extracted tick spacings over 1 rev is: {np.sum(lsAvgTickSpacing)} revs')
 
@@ -300,12 +306,13 @@ calibratedTickPositions = (np.cumsum(lsAvgTickSpacing) - lsAvgTickSpacing[0]).as
 #fileWriter.saveDataWithHeader(os.path.basename(__file__), filename, calibratedTickPositions, 'float', 'e', f'tickRescale{N_enc}')
 # Save data as a simple csv for uploading via serial communications:
 #np.savetxt(os.path.join(file_dir, 'tickPos.csv'), calibratedTickPositions, newline='\n', fmt='%.6e', delimiter=',')
+tickError = encoderCount/N_enc - calibratedTickPositions
 
 fig3, ax3 = plt.subplots()
 #ax3.plot(encoderCount/N_enc*360, lsTickCorrection, marker='.', label = 'circular closure, start = 0')
 #ax3.plot(encoderCount/N_enc*360, lsTickCorrection_startMid - np.mean(lsTickCorrection_startMid), label = f'circular closure, start = {int(N_enc/2)}')
 #ax3.errorbar(encoderCount/N_enc*360, avgTickCorrection, yerr=stdTickCorrection, marker='.', capsize=4.0, label='no circular closure')
-ax3.plot(encoderCount, encoderCount/N_enc - calibratedTickPositions, marker='.')
+ax3.plot(encoderCount, tickError, marker='.')
 ax3.set_xlabel('rotor angle (deg)')
 ax3.set_ylabel('tick error (mech. revs)')
 ax3.set_title('Tick error, '+r'$\langle \theta_i \rangle - \theta_i = \frac{i}{N_{enc}} - \sum_{k=0}^i \Delta \theta_k$', y = 1.03)
@@ -334,7 +341,8 @@ caldSpeedError = avgEncSpeed[numPtsToIgnore:-numPtsToIgnore] - calSpeed[numPtsTo
 newCaldSpeedError = avgEncSpeed[numPtsToIgnore:-numPtsToIgnore] - corrSpeed[numPtsToIgnore:-numPtsToIgnore:]
 
 ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], uncaldSpeedError, label='from raw encoder count')
-ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], caldSpeedError, label="from firwmare phase LUT")
+if(postcal):
+    ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], caldSpeedError, label="from firwmare phase LUT")
 ax4.plot(encTimeAtDelta[numPtsToIgnore:-numPtsToIgnore], newCaldSpeedError, label="from new cal'd tick positions")
 ax4.legend()
 ax4.set_xlabel('time (s)')

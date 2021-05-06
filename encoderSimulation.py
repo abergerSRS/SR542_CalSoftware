@@ -53,6 +53,7 @@ class GenericEncoder(object):
     
 class PerfectEncoder(GenericEncoder):
     def __init__(self, N):
+        # points are an the locations (in revs) of the perfectly-spaced ticks
         self.points = np.arange(0, 1, 1.0/N)
         
 class USDigitalE2Encoder(GenericEncoder):
@@ -124,20 +125,19 @@ Start the procedure here ------------------------------------------------------
 -------------------------------------------------------------------------------
 """
 
-omega_0 = 85 #Hz
+f_shaft_0 = 85 #Hz
 theta_0 = 0 #revs
 
 dt = 1/120e6 #seconds (twice as fast as FTM sampling rate, just to ensure no artifacts)
 numRevs = 3
-t_final = numRevs/omega_0
+t_final = numRevs/f_shaft_0
 numPoints = int(t_final/dt)
 t = np.linspace(0, t_final, numPoints)
 
 gamma = .073 #damping parameter, in Hz/s
-omega = omega_0*np.exp(-gamma*t)
-#omega = omega_0*np.ones(len(t))
+f_shaft = f_shaft_0*np.exp(-gamma*t) # in Hz
 
-theta_actual = scipy.integrate.cumtrapz(omega, t, initial = theta_0)
+theta_actual = scipy.integrate.cumtrapz(f_shaft, t, initial = theta_0)
 theta_actual[1:] += theta_0
 
 ftm = FTMCounter(60e6, 4096, t)
@@ -175,7 +175,7 @@ ax1.set_xlabel('time (s)')
 ax1.set_title('Position vs. time for simulated rotor')
 
 fig2, ax2 = plt.subplots()
-ax2.plot(t, omega)
+ax2.plot(t, f_shaft)
 ax2.plot(t[measuredEdgeIndices[1:]], measuredSpeed, marker='o')
 ax2.plot(t[perfectEdgeIndices[1:]], perfectSpeed, marker='o')
 ax2.legend(('actual pos', 'shaft encoder', 'perfect encoder'))

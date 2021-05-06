@@ -24,6 +24,10 @@ import fileWriter
 
 plt.close('all')
 
+# For SR1454 desktop
+file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\SR542-firmware\tools\CalData\Accel Measurements")
+filename = "torqueCal_20460001_3Hz.txt"
+
 # For SRS laptop
 #file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
@@ -33,10 +37,10 @@ plt.close('all')
 #filename = r"torqueCal_constQ_CW_newTickScaling.txt"
 
 # For lock-in lab desktop
-file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
+#file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
 #filename = "torqueCal_2046001_4Hz.txt"
 #filename = "torqueCal_2046001_3Hz_postCal.txt"
-filename = "torqueCal_2046001_4Hz_torqueScale=0.txt"
+#filename = "torqueCal_2046001_4Hz_torqueScale=0.txt"
 
 full_path = os.path.join(file_dir, filename)
 

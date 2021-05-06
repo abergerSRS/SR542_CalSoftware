@@ -24,14 +24,19 @@ plt.close('all')
 # For SRS laptop
 #file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR544\tools")
 
+# For SRS1454
+file_dir = os.path.abspath(r"C:\Users\aberger\Documents\Projects\SR542\Firmware\SR542-firmware\tools\CalData")
+
 # For lock-in lab desktop
-file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
+#file_dir = os.path.abspath(r"D:\Documents\MCUXpressoIDE_10.1.0_589\workspace\SR544\tools\CalData")
 
 #filename = "edgesAndCounts_35Hz_10-100blade_400CountShaftCal_CW_newTickScaling_6.txt" #CW rotation, new tick scaling
 #filename = "encoderCal_20460001_35Hz.txt"
 #filename = "encoderCal_20460001_35Hz_postCal.txt"
-filename = "encoderCal_20460001_35Hz_heavyBlades2.txt"
+#filename = "encoderCal_20460001_35Hz_heavyBlades2.txt"
 #filename = "encoderCal_20460001_35Hz_vertMount.txt"
+#filename = "encoderCal_20460001_35Hz_10-100Blade.txt"
+filename = "encoderCal_20460001_30Hz_CalBlade_CIR=66.txt"
 
 postcal = False
 
